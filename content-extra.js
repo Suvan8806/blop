@@ -19,7 +19,9 @@ const EXTRA = [
     pairs:[["AUC","Offline: how well held-out examples are ranked"],["Log loss","Offline: how well predicted probabilities are calibrated"],["Click-through rate","Online: share of impressions that get a click"],["Retention","Online: share of users who come back"]],
     why:"Offline metrics use held-out data; online metrics measure real users."}],
   [17, "Two-Stage Recommenders", {type:"gap", p:"Candidate generation narrows billions of items down to ___ for the ranking model.",
-    opts:["a few hundred","a few billion","exactly one"], why:"Cheap retrieval first, so the heavy ranker only scores a short list."}]
+    opts:["a few hundred","a few billion","exactly one"], why:"Cheap retrieval first, so the heavy ranker only scores a short list."}],
+  [5, "Gradient Boosting", ["Compared with a random forest, gradient boosting mainly reduces…", ["Bias", "Variance", "Training time"],
+    "Each boosted tree corrects what the ensemble still gets wrong, which lowers bias. A forest averages many deep trees, which lowers variance."]]
 ];
 EXTRA.forEach(([ui, title, q]) => {
   const l = C[ui] && C[ui].ls.find(x => x[0] === title);

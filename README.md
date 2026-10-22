@@ -1,7 +1,7 @@
 # blop
 
 A Duolingo-style study app for ML engineering, coding and system design interviews.
-53 units, 398 lessons, 1,200 questions across three subjects: ML (31 units), Coding (4) and System Design (18). Works offline and installs to your home screen.
+53 units, 398 lessons, 1,201 questions across three subjects: ML (31 units), Coding (4) and System Design (18). Works offline and installs to your home screen.
 
 ## Deploy to Vercel
 
