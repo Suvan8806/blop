@@ -24,7 +24,7 @@ const app = $("#app");
 /* ---------- tabs ---------- */
 let tab = "learn";
 function renderTabs(){
-  const t = [["learn","Learn",I.path],["today","Today",I.sun],["profile","Profile",I.user]];
+  const t = [["learn","Learn",I.path],["today","Today",I.sun],["jobs","Jobs",I.case],["profile","Profile",I.user]];
   $("#tabs").innerHTML = t.map(([k,label,ic]) =>
     `<button data-tab="${k}" ${tab===k?'aria-current="page"':""}><span class="ti">${ic}</span>${label}</button>`).join("");
   $("#tabs").querySelectorAll("button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0,0); });
@@ -120,6 +120,7 @@ function render(){
   renderTabs();
   if (tab === "learn") renderLearn();
   else if (tab === "today" && B.renderToday) B.renderToday(app, render);
+  else if (tab === "jobs" && B.renderJobs) B.renderJobs(app, render);
   else renderProfile();
 }
 B.render = render;

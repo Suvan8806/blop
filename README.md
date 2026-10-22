@@ -66,9 +66,11 @@ Progress is stored in the browser on each device.
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
 - `plan.js`: pure study-plan and calendar logic. Tested in node.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
+- `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
+- `jobs-ui.js`: the Jobs tab.
 - `app.js`: tabs, the Learn and Profile screens.
 
 They share code through `window.Blop`.
@@ -85,4 +87,9 @@ Finishing a lesson schedules a review for tomorrow. A review moves a lesson alon
 question from it was right first try, and back to 1 day if any was wrong. The daily review takes up to 15 questions from
 due lessons, previously missed questions first; with nothing due it offers extra practice instead.
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js`.
+## Jobs
+The Jobs tab logs job applications: "+1 Applied" records one for today in a single tap, and "Add details" takes a
+company, role, link and date. Each application has a status (applied, OA, phone screen, onsite, offer, rejected,
+ghosted). The response rate counts applications whose status moved past Applied, except Ghosted. Links must be http(s).
+
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js`.

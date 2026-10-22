@@ -1,0 +1,158 @@
+/* Jobs tab: one-tap "+1 Applied", today's count against a target, application streak, stats,
+   and a filterable list with status chips. Logic lives in jobs.js; all user text goes through esc(). */
+(() => {
+if (!window.Blop || !window.Blop.S || !window.Jobs) return; // an old cached index.html; app.js shows the reload screen
+const B = window.Blop;
+const { S, I, $, esc, save, today, toast, liveStreak, plural } = B;
+
+let view = { status: "all", q: "" };
+let form = null;   // null, or { id: null for a new one / the id being edited }
+let picking = null; // id whose status picker is open
+
+const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Jobs.newId();
+const dateText = day => Plan.dayLabel(day, { month: "short", day: "numeric", year: day < today() - 300 ? "numeric" : undefined });
+
+/* ---------- pieces ---------- */
+function headerHTML(){
+  const n = Jobs.countOn(S.jobs, today()), streak = Jobs.streak(S.jobs, today());
+  return `<div class="top"><div class="wrap"><h1>Jobs</h1><div class="stats">
+    <span class="pill" title="Study streak">${I.flame}${liveStreak()} study</span>
+    <span class="pill" title="Application streak: days in a row with at least one application">${I.case}${plural(streak, "day")} applying</span>
+    <span class="pill" title="Applications today">${I.target}${n}/${S.jobTarget} today</span></div></div></div>`;
+}
+function todayHTML(){
+  const n = Jobs.countOn(S.jobs, today()), pct = Math.min(100, Math.round(n / S.jobTarget * 100));
+  return `<div class="panel"><div class="jcount"><b>${n}</b><span>of ${S.jobTarget} applications today${n >= S.jobTarget ? " · target hit 🎉" : ""}</span></div>
+    <div class="jbar" role="progressbar" aria-label="Applications today" aria-valuenow="${n}" aria-valuemin="0" aria-valuemax="${S.jobTarget}"><span style="width:${Math.max(2, pct)}%"></span></div>
+    <button class="cta jplus" id="plus1">+1 Applied</button>
+    <div class="jrow"><button class="linkish soft" id="details" aria-expanded="${!!form && !form.id}">${form && !form.id ? "Hide details" : "+ Add details"}</button>
+      <div class="stepper" role="group" aria-label="Daily target"><span>Target</span>
+        <button data-tgt="-1" aria-label="Lower daily target">−</button><b>${S.jobTarget}</b><button data-tgt="1" aria-label="Raise daily target">+</button></div></div>
+    ${form && !form.id ? formHTML(null) : ""}</div>`;
+}
+function formHTML(j){
+  const v = j || { company: "", role: "", link: "", day: today() };
+  return `<form class="jform" id="jform" novalidate>
+    <label>Company<input name="company" maxlength="120" autocomplete="off" value="${esc(v.company)}"></label>
+    <label>Role<input name="role" maxlength="120" autocomplete="off" value="${esc(v.role)}"></label>
+    <label>Link<input name="link" inputmode="url" maxlength="500" autocomplete="off" placeholder="https://" value="${esc(v.link)}"></label>
+    <label>Date applied<input name="day" type="date" value="${Jobs.isoFromDay(v.day)}" max="${Jobs.isoFromDay(today())}"></label>
+    <div class="jfbtns"><button type="button" class="cta ghost" id="jcancel">Cancel</button><button type="submit" class="cta">${j ? "Save" : "Log application"}</button></div></form>`;
+}
+function statsHTML(){
+  const s = Jobs.stats(S.jobs, today());
+  const diff = s.thisWeek - s.lastWeek;
+  return `<div class="panel"><h3>Stats</h3><div class="sumgrid">
+    <div><b>${s.total}</b><small>total applied</small></div>
+    <div><b>${s.rate}%</b><small>response rate</small></div>
+    <div><b>${s.thisWeek}</b><small>this week (${diff >= 0 ? "+" : "−"}${Math.abs(diff)} vs last)</small></div></div>
+    <p class="fine">Response rate: the share of applications that got any reply, meaning their status moved past Applied
+    (OA, phone screen, onsite, offer or rejected). Ghosted doesn't count. Last week: ${s.lastWeek}. Weeks start Monday.</p></div>`;
+}
+function chipHTML(j){
+  return `<button class="schip st-${j.status}" data-pick="${esc(j.id)}" aria-expanded="${picking === j.id}" aria-label="Status: ${esc(Jobs.statusName(j.status))}. Change">
+    ${esc(Jobs.statusName(j.status))}<span aria-hidden="true">▾</span></button>`;
+}
+function pickerHTML(j){
+  return `<div class="spick" role="group" aria-label="Set status">${Jobs.STATUSES.map(([id, name]) =>
+    `<button class="schip st-${id}" data-set="${esc(j.id)}" data-status="${id}" aria-pressed="${j.status === id}">${esc(name)}</button>`).join("")}</div>`;
+}
+function itemHTML(j){
+  if (form && form.id === j.id) return `<li class="job editing">${formHTML(j)}</li>`;
+  const sub = [j.role, dateText(j.day)].filter(Boolean).map(esc).join(" · ");
+  return `<li class="job"><div class="jtop"><div class="jmain"><b>${j.company ? esc(j.company) : `<span class="soft">Application</span>`}</b>
+      <span>${sub}</span>${j.link ? `<a href="${esc(j.link)}" target="_blank" rel="noopener noreferrer">Job posting ↗</a>` : ""}</div>
+      ${chipHTML(j)}</div>
+    ${picking === j.id ? pickerHTML(j) : ""}
+    <div class="jacts"><button data-edit="${esc(j.id)}">Edit</button><button data-del="${esc(j.id)}">Delete</button></div></li>`;
+}
+function listHTML(){
+  const list = Jobs.filter(S.jobs, view);
+  if (!S.jobs.length) return `<p class="empty">No applications yet. Tap +1 Applied each time you send one.</p>`;
+  if (!list.length) return `<p class="empty">Nothing matches.</p>`;
+  return `<ul class="jobs">${list.map(itemHTML).join("")}</ul>`;
+}
+function filtersHTML(){
+  const c = Jobs.counts(S.jobs);
+  const opts = [["all", "All", S.jobs.length], ...Jobs.STATUSES.map(([id, name]) => [id, name, c[id]])];
+  return `<input type="search" id="jq" class="jsearch" placeholder="Search company" aria-label="Search by company" value="${esc(view.q)}">
+    <div class="jfilt" role="group" aria-label="Filter by status">${opts.map(([id, name, n]) =>
+      `<button data-filter="${id}" aria-pressed="${view.status === id}">${esc(name)} <small>${n}</small></button>`).join("")}</div>`;
+}
+
+/* ---------- actions ---------- */
+function readForm(el){
+  const f = new FormData(el);
+  return { company: f.get("company"), role: f.get("role"), link: String(f.get("link") || ""),
+    day: Jobs.dayFromISO(String(f.get("day") || "")), rawLink: String(f.get("link") || "").trim() };
+}
+function submit(el, render){
+  const v = readForm(el);
+  if (v.rawLink && !Jobs.safeLink(v.rawLink)) { toast("Links must be web addresses (http or https)."); return; }
+  if (v.day !== null && v.day > today()) { toast("The date can't be in the future."); return; }
+  const now = Date.now();
+  if (form.id) S.jobs = Jobs.update(S.jobs, form.id, { company: v.company, role: v.role, link: v.link, ...(v.day !== null ? { day: v.day } : {}) }, now);
+  else S.jobs = [...S.jobs, Jobs.create(v, { id: newId(), day: today(), now })];
+  const added = !form.id;
+  form = null; save(); render();
+  if (added) toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
+}
+function bindForm(render){
+  const fe = $("#jform");
+  if (!fe) return;
+  fe.onsubmit = e => { e.preventDefault(); submit(fe, render); };
+  $("#jcancel").onclick = () => { form = null; render(); };
+}
+function bindList(app, render){
+  bindForm(render);
+  const list = app.querySelector("#jlist");
+  list.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => {
+    picking = picking === b.dataset.pick ? null : b.dataset.pick; render();
+    const p = app.querySelector(`[data-set="${CSS.escape(b.dataset.pick)}"][aria-pressed="true"]`); if (p) p.focus({ preventScroll: true });
+  });
+  list.querySelectorAll("[data-set]").forEach(b => b.onclick = () => {
+    S.jobs = Jobs.update(S.jobs, b.dataset.set, { status: b.dataset.status }, Date.now());
+    picking = null; save(); render();
+    const c = app.querySelector(`[data-pick="${CSS.escape(b.dataset.set)}"]`); if (c) c.focus({ preventScroll: true });
+  });
+  list.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+    form = { id: b.dataset.edit }; picking = null; render();
+    const first = app.querySelector("#jform input"); if (first) first.focus({ preventScroll: true });
+  });
+  list.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const j = S.jobs.find(x => x.id === b.dataset.del);
+    if (j && confirm(`Delete ${j.company ? `the ${j.company} application` : "this application"}? This can’t be undone.`)) {
+      S.jobs = Jobs.remove(S.jobs, j.id); save(); render();
+    }
+  });
+}
+function bind(app, render){
+  $("#plus1").onclick = () => {
+    S.jobs = [...S.jobs, Jobs.create(null, { id: newId(), day: today(), now: Date.now() })]; save(); render();
+    toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
+  };
+  $("#details").onclick = () => {
+    form = form && !form.id ? null : { id: null }; picking = null; render();
+    const first = app.querySelector("#jform input"); if (first) first.focus({ preventScroll: true });
+  };
+  app.querySelectorAll("[data-tgt]").forEach(b => b.onclick = () => { S.jobTarget = Jobs.clampTarget(S.jobTarget + +b.dataset.tgt); save(); render(); });
+  app.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
+    view = { ...view, status: b.dataset.filter }; render();
+    const f = app.querySelector(`[data-filter="${b.dataset.filter}"]`); if (f) f.focus({ preventScroll: true });
+  });
+  const q = $("#jq");
+  q.oninput = () => { // only the list re-renders, so the search box keeps focus
+    view = { ...view, q: q.value };
+    app.querySelector("#jlist").innerHTML = listHTML(); bindList(app, render);
+  };
+  bindList(app, render);
+}
+
+function renderJobs(app, render){
+  app.innerHTML = `${headerHTML()}<div class="wrap">${todayHTML()}${statsHTML()}
+    <div class="panel"><h3>Applications</h3>${filtersHTML()}<div id="jlist">${listHTML()}</div></div></div>`;
+  bind(app, render);
+}
+
+B.renderJobs = renderJobs;
+})();

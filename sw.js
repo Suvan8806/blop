@@ -1,7 +1,7 @@
 // Offline support: serve cached files instantly, refresh them in the background.
 const CACHE = "blop-v4";
-const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-extra.js", "/plan.js", "/srs.js", "/logic.js",
-  "/core.js", "/qtypes.js", "/today.js", "/app.js", "/manifest.webmanifest",
+const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-extra.js", "/plan.js", "/srs.js", "/jobs.js", "/logic.js",
+  "/core.js", "/qtypes.js", "/today.js", "/jobs-ui.js", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {

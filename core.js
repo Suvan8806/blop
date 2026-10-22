@@ -17,10 +17,15 @@ function load(){
   let s = null;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
   const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{} }, s && typeof s === "object" ? s : {});
+    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{},
+    jobs:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, s && typeof s === "object" ? s : {});
   st.subject = L.validSubject(st.subject);
   if (window.Plan) st.plan = Plan.migratePlan(st.plan);
-  if (window.SRS) st.srs = SRS.migrate(st.srs, st.done, today(), Date.now());
+  if (window.SRS) { // only lessons that still exist get a schedule
+    const known = Object.fromEntries(Object.keys(st.done || {}).filter(id => st.done[id] && BY_ID[id]).map(id => [id, true]));
+    st.srs = SRS.migrate(st.srs, known, today(), Date.now());
+  }
+  if (window.Jobs) { st.jobs = Jobs.sanitize(st.jobs); st.jobTarget = Jobs.clampTarget(st.jobTarget); }
   return st;
 }
 const S = load(); // same object for the whole session; reset() refills it in place
