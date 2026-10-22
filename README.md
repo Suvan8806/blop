@@ -64,17 +64,25 @@ Progress is stored in the browser on each device.
 
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
-- `plan.js`: pure study-plan logic. Tested in node.
+- `plan.js`: pure study-plan and calendar logic. Tested in node.
+- `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
-- `app.js`: tabs and screens.
+- `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
+- `app.js`: tabs, the Learn and Profile screens.
 
 They share code through `window.Blop`.
 
 ## Study plan
-The Plan tab spreads the lessons you have left over 14, 30, 45 or 60 days. Today's target is fixed
+The Today tab spreads the lessons you have left over 14, 30, 45 or 60 days. Today's target is fixed
 for the day; every day after it is recalculated from what's actually left, so extra lessons make
 later days lighter and missed days make them heavier. Untick units you already know to drop them
-from the count. "Add to calendar" downloads an .ics file with a daily alert until the plan ends.
+from the count; units added to the app after a plan starts stay out of it until you tick them.
+The month calendar colours each plan day: target met, partly done, missed, upcoming or rest day. "Add to calendar" downloads an .ics file with a daily alert until the plan ends.
 
-Run all tests with `node --test test/plan.test.js test/content.test.js`.
+## Spaced repetition
+Finishing a lesson schedules a review for tomorrow. A review moves a lesson along 1 → 3 → 7 → 21 → 60 days when every
+question from it was right first try, and back to 1 day if any was wrong. The daily review takes up to 15 questions from
+due lessons, previously missed questions first; with nothing due it offers extra practice instead.
+
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js`.

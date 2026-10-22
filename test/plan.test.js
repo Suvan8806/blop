@@ -182,3 +182,50 @@ test("old plans without knownUnits migrate to the 18 units that existed before",
   assert.equal(Plan.migratePlan(p), p);
   assert.equal(Plan.migratePlan(null), null);
 });
+
+test("aheadBy: on track, behind after missed days, ahead after extra work", () => {
+  const order = ids(150);
+  const fresh = Plan.schedule({ order, done: {}, doneOn: {}, today: START, start: START, days: 30 });
+  assert.equal(Plan.aheadBy(fresh, START, 30, START), 0);
+  const half = markDone(order.slice(0, 3), START);
+  const s1 = Plan.schedule({ order, ...half, today: START, start: START, days: 30 });
+  assert.equal(Plan.aheadBy(s1, START, 30, START), 0); // half of today's 5 isn't "behind"
+  const lazy = Plan.schedule({ order, done: {}, doneOn: {}, today: START + 6, start: START, days: 30 });
+  assert.equal(Plan.aheadBy(lazy, START, 30, START + 6), -30); // 6 days x 5 a day
+  const keen = markDone(order.slice(0, 20), START);
+  const s2 = Plan.schedule({ order, ...keen, today: START, start: START, days: 30 });
+  assert.equal(Plan.aheadBy(s2, START, 30, START), 15);
+});
+
+test("recordTarget stores today's target, keeps other days and drops very old ones", () => {
+  const a = Plan.recordTarget(undefined, 500, 4);
+  assert.deepEqual(a, { 500: 4 });
+  assert.equal(Plan.recordTarget(a, 500, 4), a);
+  const b = Plan.recordTarget({ 50: 1, 499: 3, 500: 4 }, 500, 6);
+  assert.deepEqual(b, { 499: 3, 500: 6 });
+});
+
+test("monthInfo gives the first day, length and leading weekday", () => {
+  const oct = Plan.monthInfo(2026, 9);
+  assert.equal(oct.count, 31);
+  assert.equal(oct.lead, 4); // 1 Oct 2026 is a Thursday
+  assert.equal(Plan.ymd(oct.first), "20261001");
+  assert.equal(Plan.monthInfo(2024, 1).count, 29);
+  assert.deepEqual(Plan.monthOf(oct.first + 30), { year: 2026, month: 9 });
+  assert.deepEqual(Plan.monthOf(oct.first + 31), { year: 2026, month: 10 });
+});
+
+test("dayStatus colours days by target met, partly done, missed, upcoming and rest", () => {
+  const st = (day, did, target) => Plan.dayStatus({ day, today: 10, did, target });
+  assert.equal(st(5, 3, 3), "done");
+  assert.equal(st(5, 1, 3), "partial");
+  assert.equal(st(5, 0, 3), "missed");
+  assert.equal(st(5, 0, 0), "rest");
+  assert.equal(st(5, 2, 0), "done");
+  assert.equal(st(10, 0, 3), "today");
+  assert.equal(st(10, 3, 3), "done");
+  assert.equal(st(10, 1, 3), "partial");
+  assert.equal(st(12, 0, 2), "upcoming");
+  assert.equal(st(12, 0, 0), "rest");
+  assert.equal(st(5, 4, null), "off");
+});

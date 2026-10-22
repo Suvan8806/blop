@@ -82,6 +82,7 @@ const I = {
   sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6"/></svg>',
+  case:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18"/></svg>',
   trophy:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3zm0 4H6v1a2 2 0 0 0 1 1.7zm10 0v2.7A2 2 0 0 0 18 8V7z"/></svg>'
 };
 
@@ -230,7 +231,50 @@ function runSession(items, opts){
   step();
 }
 
-Object.assign(B, { KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
+/* ---------- plan and header helpers, shared by the tabs ---------- */
+function plural(n, word){ return `${n} ${word}${n === 1 ? "" : "s"}`; }
+/* Units left out of the plan: the ones the user unticked, plus units added since the plan was made. */
+function planSkip(){
+  return S.plan && window.Plan ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
+}
+/* Today's schedule for the active plan, or null. Also remembers today's target for the calendar. */
+function sched(){
+  if (!S.plan || !window.Plan) return null; // Plan is missing for one load if an old cached index.html is served
+  const t = today();
+  const s = Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
+    today: t, start: S.plan.start, days: S.plan.days });
+  const targets = Plan.recordTarget(S.plan.targets, t, s.todayTarget);
+  if (targets !== S.plan.targets) { S.plan = { ...S.plan, targets }; save(); }
+  return s;
+}
+function dayGoal(){
+  const s = sched();
+  if (s && s.remaining + s.doneToday > 0) return { done: s.doneToday, goal: Math.max(1, s.todayTarget), plan: true };
+  rollDay();
+  return { done: S.dayLessons, goal: S.goal, plan: false };
+}
+function nextUp(){
+  const s = sched();
+  const id = s && s.plan.flatMap(d => d.ids)[0];
+  return id ? BY_ID[id] : nextOverall();
+}
+function statsRow(extra){
+  const g = dayGoal();
+  return `<div class="stats">
+    <span class="pill" title="Day streak">${I.flame}${liveStreak()}</span>
+    <span class="pill" title="Total XP">${I.bolt}${S.xp} XP</span>
+    <span class="pill" title="${g.plan ? "New lessons today in your plan" : "Lessons today"}">${I.target}${g.done}/${g.goal} today</span>${extra || ""}
+  </div>`;
+}
+function ringSVG(pct, label){
+  const r = 40, c = 2*Math.PI*r;
+  return `<svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--sunk)" stroke-width="10"/>
+    <circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--green)" stroke-width="10" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${c*(1-pct)}" transform="rotate(-90 48 48)"/>
+    <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
+}
+
+Object.assign(B, { plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

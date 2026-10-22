@@ -1,4 +1,4 @@
-// Run with: node --test test/plan.test.js test/content.test.js
+// Run with: node --test test/plan.test.js test/content.test.js test/srs.test.js
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const L = require("../logic.js");

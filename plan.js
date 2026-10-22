@@ -79,8 +79,47 @@ function schedule({ order, done, doneOn, today, start, days }) {
   const finishDay = !remaining.length ? today
     : pace > 0 ? today + Math.ceil(remaining.length / pace) - 1 : null;
 
-  return { end, overdue, daysLeft, todayTarget, doneToday, todayLeft, plan, history,
+  return { end, overdue, daysLeft, todayTarget, doneToday, todayLeft, plan, history, sinceStart,
            total: order.length, doneInPlan, remaining: remaining.length, pace, finishDay };
+}
+
+/* Lessons ahead of (+) or behind (-) an even pace from the plan's start. Work today only counts as
+   ahead once today's target is met, so a half-done day never reads as behind. */
+function aheadBy(s, start, days, today) {
+  const atStart = s.remaining + s.sinceStart;               // lessons left when the plan began
+  const daysLeftAtDawn = Math.max(0, start + days - today);  // including today
+  const expected = atStart * daysLeftAtDawn / days;          // what should be left this morning
+  const actual = s.remaining + s.doneToday;                  // what was left this morning
+  return Math.round(expected - actual + Math.max(0, s.doneToday - s.todayTarget));
+}
+
+/* Remember each day's target so the calendar can judge past days. Keeps about a year. */
+const KEEP_TARGET_DAYS = 400;
+function recordTarget(targets, day, target) {
+  const t = targets && typeof targets === "object" ? targets : {};
+  if (t[day] === target) return t;
+  const out = { [day]: target };
+  Object.keys(t).forEach(k => { if (+k !== day && +k > day - KEEP_TARGET_DAYS) out[k] = t[k]; });
+  return out;
+}
+
+/* Calendar month: the day number of the 1st, how many days, and the weekday of the 1st (0 = Sunday). */
+function monthInfo(year, month) {
+  const first = Date.UTC(year, month, 1) / DAY_MS;
+  const count = (Date.UTC(year, month + 1, 1) / DAY_MS) - first;
+  return { first, count, lead: dayDate(first).getUTCDay() };
+}
+function monthOf(day) { const d = dayDate(day); return { year: d.getUTCFullYear(), month: d.getUTCMonth() }; }
+
+/* How a calendar day looks. target: lessons expected that day (0 = rest day, null = not judged).
+   Returns done | partial | missed | today | upcoming | rest | off. */
+function dayStatus({ day, today, did, target }) {
+  if (target === null || target === undefined) return "off";
+  if (day > today) return target ? "upcoming" : "rest";
+  if (!target) return did ? "done" : "rest";
+  if (did >= target) return "done";
+  if (did > 0) return "partial";
+  return day === today ? "today" : "missed";
 }
 
 /* Preview before a plan starts. */
@@ -128,6 +167,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);

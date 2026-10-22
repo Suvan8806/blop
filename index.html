@@ -22,7 +22,7 @@
   --bg:#F2F5F3; --surface:#FFFFFF; --sunk:#E6ECE8; --ink:#16211C; --soft:#5C6A63; --line:#D6DED9;
   --green:#1F9D61; --green-d:#16784A; --green-bg:#DDF3E7;
   --red:#D8484A; --red-d:#A93436; --red-bg:#FBE3E3;
-  --gold:#E3A019; --violet:#6A5AE0;
+  --gold:#E3A019; --gold-bg:#FBEFD2; --gold-d:#8A5D00; --violet:#6A5AE0;
   --tab-h:64px;
   font-family:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
@@ -32,6 +32,7 @@
     --bg:#0F1513; --surface:#19211E; --sunk:#222C28; --ink:#E8EFEB; --soft:#9AA9A2; --line:#2C3833;
     --green:#2FBF7B; --green-d:#1F8A57; --green-bg:#173A2A;
     --red:#EE6A6C; --red-d:#B5484A; --red-bg:#3D1F20;
+    --gold-bg:#3A2E12; --gold-d:#F2C25B;
   }
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -211,6 +212,41 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .badge{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--violet);color:#fff;font-size:.7rem;font-weight:700;vertical-align:2px;letter-spacing:.02em}
 .count{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;margin-left:4px;border-radius:999px;background:var(--violet);color:#fff;font-size:.85rem;vertical-align:2px}
 .fnote{color:var(--soft);margin:0 0 20px}
+/* today */
+.tlist{margin:14px -18px 0;padding:0;border-top:1px solid var(--line)}
+.tlist li + li{border-top:1px solid var(--line)}
+.tlist .lesson{padding:10px 18px}
+.pace{margin-top:14px;padding:12px 14px;border-radius:14px;background:var(--sunk)}
+.pace b{display:block;font-size:.98rem}
+.pace span{display:block;font-size:.85rem;color:var(--soft);line-height:1.45;margin-top:2px}
+.pace.ahead{background:var(--green-bg)} .pace.ahead b{color:var(--green-d)}
+.pace.behind{background:var(--red-bg)} .pace.behind b{color:var(--red-d)}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.calhead h3{margin:0}
+.calnav{width:44px;height:44px;border-radius:12px;border:2px solid var(--line);font-size:1.5rem;line-height:1;font-weight:700;color:var(--ink)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.wds{display:contents}
+.wd{text-align:center;font-size:.72rem;font-weight:700;color:var(--soft);padding-bottom:2px}
+.cd{position:relative;aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border:2px solid transparent;font-size:.85rem;line-height:1.05;color:var(--soft)}
+.cd .dn{font-weight:700}
+.cd .mk{font-size:.72rem;font-weight:800;min-height:.9em}
+.cd.pad{visibility:hidden}
+.cd.st-done{background:var(--green);color:#fff}
+.cd.st-partial{background:var(--gold-bg);border-color:var(--gold);color:var(--ink)}
+.cd.st-partial .mk{color:var(--gold-d)}
+.cd.st-missed{background:var(--red-bg);border-color:var(--red);color:var(--ink)}
+.cd.st-missed .mk{color:var(--red-d)}
+.cd.st-upcoming{border:2px dashed var(--line);color:var(--ink)}
+.cd.st-upcoming .mk{color:var(--soft);font-weight:700}
+.cd.st-rest{background:var(--sunk)}
+.cd.st-today{border-color:var(--ink);color:var(--ink)}
+.cd.is-today{box-shadow:0 0 0 3px var(--violet)}
+.legend{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:.82rem;color:var(--soft)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend .sw{width:24px;height:24px;aspect-ratio:auto;border-radius:7px}
+.legend .sw .mk{font-size:.7rem}
+@media (prefers-color-scheme: dark){ .pace.ahead b{color:var(--green)} .pace.behind b{color:var(--red)} .cd.st-missed .mk{color:var(--red)} .cd.st-done{color:#0F1513} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
@@ -227,6 +263,7 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/logic.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
+<script src="/today.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
