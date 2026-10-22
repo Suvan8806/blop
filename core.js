@@ -187,7 +187,7 @@ function runSession(items, opts){
   }
   function finish(){
     const acc = qTotal ? Math.round(firstTry / qTotal * 100) : 100;
-    const r = opts.onFinish({ acc, perfect: acc === 100 });
+    const r = opts.onFinish({ acc, perfect: qTotal > 0 && acc === 100 }); // no bonus for a lesson with no questions
     el.innerHTML = `<div class="s-body"><div class="finish slide">
       <div class="trophy">${I.trophy}</div><h2>${esc(r.title)}</h2>
       <div class="chips"><div class="chip"><small>XP earned</small><b>+${r.xp}</b></div>

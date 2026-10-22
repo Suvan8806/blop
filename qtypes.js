@@ -2,6 +2,7 @@
    api.ready(bool) (enables Check) and api.answer(right) (shows the feedback footer).
    mount() returns { check(), key(event) -> handled }. Answer logic lives in logic.js. */
 (() => {
+if (!window.Blop || !window.Blop.logic) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop, L = B.logic;
 const { esc, fmt, shuffle } = B;
 const LETTERS = "ABCDEFGH";

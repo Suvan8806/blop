@@ -27,8 +27,9 @@ test("gap, order and match objects normalise", () => {
   assert.equal(gap.type, "gap"); assert.equal(gap.ok, "set");
   const ord = L.normQ({ type: "order", p: "Order", items: ["a", "b", "c"] }, "o");
   assert.deepEqual(ord.items, ["a", "b", "c"]); assert.equal(ord.why, "");
-  const m = L.normQ({ type: "match", p: "M", pairs: [["t1", "d1"], ["t2", "d2"]] }, "m");
-  assert.deepEqual(m.pairs, [["t1", "d1"], ["t2", "d2"]]);
+  const four = [["t1", "d1"], ["t2", "d2"], ["t3", "d3"], ["t4", "d4"]];
+  const m = L.normQ({ type: "match", p: "M", pairs: four }, "m");
+  assert.deepEqual(m.pairs, four);
 });
 
 test("malformed questions become null instead of crashing", () => {
@@ -48,7 +49,7 @@ test("a dropped question doesn't shift the ids after it", () => {
 });
 
 test("lesson problems come from the optional 4th element", () => {
-  const l = L.normLesson(["T", "t", [], { problems: ["Two Sum", "3Sum"] }], 18, 1);
+  const l = L.normLesson(["T", "t", [["q", ["a", "b"]]], { problems: ["Two Sum", "3Sum"] }], 18, 1);
   assert.deepEqual(l.problems, ["Two Sum", "3Sum"]);
 });
 
@@ -136,5 +137,34 @@ test("checkPair matches a term to its own definition", () => {
 test("answerText lists the correct answer for every type", () => {
   assert.equal(L.answerText(L.normQ(["p", ["ok", "no"]], "x")), "ok");
   assert.equal(L.answerText(L.normQ({ type: "order", p: "x", items: ["a", "b"] }, "x")), "1. a\n2. b");
-  assert.equal(L.answerText(L.normQ({ type: "match", p: "x", pairs: [["t", "d"], ["u", "e"]] }, "x")), "t: d\nu: e");
+  assert.equal(L.answerText(L.normQ({ type: "match", p: "x", pairs: [["t", "d"], ["u", "e"], ["v", "f"], ["w", "g"]] }, "x")), "t: d\nu: e\nv: f\nw: g");
+});
+
+test("match needs exactly 4 pairs and order 2-6 items, so keys always cover them", () => {
+  const pairs = n => Array.from({ length: n }, (_, i) => [`t${i}`, `d${i}`]);
+  assert.equal(L.normQ({ type: "match", p: "M", pairs: pairs(3) }, "m"), null);
+  assert.equal(L.normQ({ type: "match", p: "M", pairs: pairs(5) }, "m"), null);
+  assert.ok(L.normQ({ type: "match", p: "M", pairs: pairs(4) }, "m"));
+  const items = n => Array.from({ length: n }, (_, i) => `s${i}`);
+  assert.equal(L.normQ({ type: "order", p: "O", items: items(7) }, "o"), null);
+  assert.ok(L.normQ({ type: "order", p: "O", items: items(6) }, "o"));
+  assert.ok(L.normQ({ type: "order", p: "O", items: items(2) }, "o"));
+});
+
+test("checkPair compares text, so a repeated term matches either of its definitions", () => {
+  const q = L.normQ({ type: "match", p: "M", pairs: [["A", "1"], ["A", "2"], ["B", "3"], ["C", "4"]] }, "m");
+  assert.equal(L.checkPair(q, 0, 1), true);  // term "A" with definition "2"
+  assert.equal(L.checkPair(q, 1, 0), true);
+  assert.equal(L.checkPair(q, 2, 0), false);
+  assert.equal(L.checkPair(q, 9, 0), false);
+});
+
+test("a lesson whose questions are all malformed has no questions and is reported", () => {
+  const warn = console.warn, seen = [];
+  console.warn = m => seen.push(m);
+  try {
+    const l = L.normLesson(["T", "teach", [{ type: "match", p: "x", pairs: [["a", "b"]] }]], 0, 0);
+    assert.equal(l.qs.length, 0);
+    assert.ok(seen.some(m => /u0l0q0/.test(m)) && seen.some(m => /no valid questions/.test(m)));
+  } finally { console.warn = warn; }
 });

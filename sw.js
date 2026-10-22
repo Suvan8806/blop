@@ -2,7 +2,7 @@
 const CACHE = "blop-v3";
 const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-extra.js", "/plan.js", "/logic.js",
   "/core.js", "/qtypes.js", "/app.js", "/manifest.webmanifest",
-  "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
+  "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

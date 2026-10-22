@@ -4,6 +4,8 @@
 const HUES = ["#2A9D8F","#6A5AE0","#E0724F","#3A7FD5","#C98A12","#D0507F"];
 const SUBJECTS = [["ml","ML"],["code","Coding"],["sd","System Design"]];
 const SUBJECT_IDS = SUBJECTS.map(s => s[0]);
+const MATCH_PAIRS = 4;            // keyboard letters A-D and digits 1-4 cover a match
+const ORDER_MIN = 2, ORDER_MAX = 6;
 // Units that already shipped in content.js but belong to another subject. Tagged here so content.js stays untouched.
 const UNIT_SUBJECT = { 16: "sd", 17: "sd" };
 
@@ -23,9 +25,12 @@ function normQ(raw, id) {
     const ok = strs(raw.opts) && raw.opts.length >= 2 && base.p.split("___").length === 2;
     return ok ? { ...base, opts: raw.opts.slice(), ok: raw.opts[0] } : null;
   }
-  if (raw.type === "order") return strs(raw.items) && raw.items.length >= 2 ? { ...base, items: raw.items.slice() } : null;
+  if (raw.type === "order") {
+    const ok = strs(raw.items) && raw.items.length >= ORDER_MIN && raw.items.length <= ORDER_MAX;
+    return ok ? { ...base, items: raw.items.slice() } : null;
+  }
   if (raw.type === "match") {
-    const ok = Array.isArray(raw.pairs) && raw.pairs.length >= 2 && raw.pairs.every(x => Array.isArray(x) && x.length === 2 && strs(x));
+    const ok = Array.isArray(raw.pairs) && raw.pairs.length === MATCH_PAIRS && raw.pairs.every(x => Array.isArray(x) && x.length === 2 && strs(x));
     return ok ? { ...base, pairs: raw.pairs.map(x => x.slice()) } : null;
   }
   return null;
@@ -37,9 +42,16 @@ function normLesson(raw, ui, li) {
   const [title, teach, qs, extra] = raw;
   const id = `u${ui}l${li}`;
   const problems = extra && strs(extra.problems) ? extra.problems.slice() : [];
-  return { id, ui, li, title: str(title), teach: str(teach), problems,
-    qs: (Array.isArray(qs) ? qs : []).map((q, qi) => normQ(q, `${id}q${qi}`)).filter(Boolean) };
+  const list = (Array.isArray(qs) ? qs : []).map((q, qi) => {
+    const n = normQ(q, `${id}q${qi}`);
+    if (!n) warn(`blop: dropped malformed question ${id}q${qi}`);
+    return n;
+  }).filter(Boolean);
+  if (!list.length) warn(`blop: lesson ${id} has no valid questions`);
+  return { id, ui, li, title: str(title), teach: str(teach), problems, qs: list };
 }
+
+function warn(msg) { if (typeof console !== "undefined") console.warn(msg); }
 
 function subjectOf(rawUnit, ui) {
   const tr = UNIT_SUBJECT[ui] || (rawUnit && rawUnit.tr);
@@ -70,9 +82,11 @@ function checkOrder(q, seq) {
 }
 /* Which placed positions are wrong, for marking after a check. */
 function orderMarks(q, seq) { return seq.map((i, pos) => q.items[i] === q.items[pos]); }
-/* term and def are indexes into q.pairs. */
+/* term and def are indexes into q.pairs. Compared by text, so a repeated term or definition can't be marked wrong. */
 function checkPair(q, term, def) {
-  return !!q.pairs[term] && !!q.pairs[def] && q.pairs[term][1] === q.pairs[def][1];
+  if (!q.pairs[term] || !q.pairs[def]) return false;
+  const t = q.pairs[term][0], d = q.pairs[def][1];
+  return q.pairs.some(p => p[0] === t && p[1] === d);
 }
 /* Plain-text correct answer, shown in the feedback footer. */
 function answerText(q) {
@@ -81,7 +95,7 @@ function answerText(q) {
   return q.ok;
 }
 
-const Logic = { HUES, SUBJECTS, UNIT_SUBJECT, normQ, normLesson, subjectOf, buildUnits, unitsFor, subjectName,
+const Logic = { MATCH_PAIRS, ORDER_MIN, ORDER_MAX, HUES, SUBJECTS, UNIT_SUBJECT, normQ, normLesson, subjectOf, buildUnits, unitsFor, subjectName,
   validSubject, checkChoice, checkOrder, orderMarks, checkPair, answerText };
 if (typeof module !== "undefined" && module.exports) module.exports = Logic;
 else (root.Blop = root.Blop || {}).logic = Logic;

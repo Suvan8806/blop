@@ -1,5 +1,21 @@
 /* Tabs and screens. Data, state, helpers and the session runner come from core.js via window.Blop. */
 (() => {
+/* An old cached index.html can serve this file without core.js. Reload once to pick up the new page,
+   then fall back to a button so it can never loop. */
+if (!window.Blop || !window.Blop.S) {
+  const FLAG = "blop-stale-reload";
+  let tried = false;
+  try { tried = sessionStorage.getItem(FLAG) === "1"; sessionStorage.setItem(FLAG, "1"); } catch (e) { tried = true; }
+  if (!tried) { location.reload(); return; }
+  const root = document.getElementById("app");
+  if (root) {
+    root.innerHTML = `<div class="wrap"><div class="panel"><h3>Update ready</h3><p>Tap to load the new version of blop.</p>
+      <button class="cta" id="reload">Reload</button></div></div>`;
+    document.getElementById("reload").onclick = () => location.reload();
+  }
+  return;
+}
+try { sessionStorage.removeItem("blop-stale-reload"); } catch (e) {}
 const B = window.Blop, L = B.logic;
 const { UNITS, ALL, BY_ID, QS, S, I, $, esc, save, today, rollDay, liveStreak, toast,
   unlocked, nextInUnit, nextOverall, unitLabel, startLesson, startPractice } = B;
