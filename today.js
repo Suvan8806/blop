@@ -162,8 +162,8 @@ function planSetupHTML(secs){
     <button class="cta" id="startplan" ${left ? "" : "disabled"}>Start my plan</button></div>`;
 }
 function planSettingsHTML(s){
-  return `${s.overdue || !s.remaining ? "" : `<div class="panel"><h3>Daily reminder</h3>
-      <p>Adds a repeating event with an alert to your phone’s calendar, every day until your plan ends.</p>
+  return `${s.overdue || !s.remaining ? "" : `<div class="panel"><h3>Calendar reminder</h3>
+      <p>Adds a repeating event with an alert to your phone’s calendar, every day until your plan ends. For a notification only on days you haven’t studied yet, turn on Daily reminder in Profile.</p>
       <div class="remind"><input type="time" id="remindat" value="${esc(S.remind)}" aria-label="Reminder time">
       <button class="cta ghost" id="addremind">Add to calendar</button></div></div>`}
     <div class="panel"><h3>Change your plan</h3><p>Finish in this many days, counting from today.</p>

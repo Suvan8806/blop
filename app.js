@@ -22,7 +22,18 @@ const { UNITS, ALL, BY_ID, S, I, $, esc, save, setSettings, liveStreak, toast, u
 const app = $("#app");
 
 /* ---------- tabs ---------- */
-let tab = "learn";
+const TABS = ["learn", "today", "mock", "jobs", "profile"];
+/* ?tab=today (a reminder notification opens the app this way) picks the first tab, then leaves the URL clean. */
+function initialTab(){
+  try {
+    const u = new URL(location.href), t = u.searchParams.get("tab");
+    if (t === null) return "learn";
+    u.searchParams.delete("tab");
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    return TABS.includes(t) ? t : "learn";
+  } catch (e) { return "learn"; }
+}
+let tab = initialTab();
 function renderTabs(){
   const t = [["learn","Learn",I.path],["today","Today",I.sun],["mock","Mock",I.chat],["jobs","Jobs",I.case],["profile","Profile",I.user]];
   $("#tabs").innerHTML = t.map(([k,label,ic]) =>
@@ -101,6 +112,7 @@ function renderProfile(){
     <div class="panel"><div class="big">${unitsDone}<span style="font-size:1rem;color:var(--soft)">/${UNITS.length}</span></div><div class="k">units finished</div></div>
   </div>
   ${B.syncPanelHTML ? B.syncPanelHTML() : ""}
+  ${B.remindPanelHTML ? B.remindPanelHTML() : ""}
   ${dayGoal().plan
     ? `<div class="panel"><h3>Daily goal</h3><p style="margin:0">Your study plan sets this each day. Change it in the Today tab.</p></div>`
     : `<div class="panel"><h3>Daily goal</h3><p>Lessons per day. Each takes about two minutes.</p>
@@ -116,6 +128,7 @@ function renderProfile(){
     <button class="linkish" id="reset">Reset study progress</button></div></div>`;
   app.querySelectorAll("[data-goal]").forEach(b => b.onclick = () => { setSettings({ goal: +b.dataset.goal }); render(); });
   if (B.bindSyncPanel) B.bindSyncPanel(app);
+  if (B.bindRemindPanel) B.bindRemindPanel(app);
   $("#reset").onclick = () => {
     if (confirm("Reset your study progress? Job applications and settings stay. This can’t be undone.")) { B.reset(); render(); }
   };
@@ -144,5 +157,12 @@ B.goTab = k => { tab = k; render(); window.scrollTo(0,0); };
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+/* Tapping a reminder while blop is already open: the service worker asks this page to show that tab. */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", e => {
+    const d = e.data;
+    if (d && d.type === "blop-open" && TABS.includes(d.tab) && !document.querySelector(".session")) B.goTab(d.tab);
+  });
 }
 })();

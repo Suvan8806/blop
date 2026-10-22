@@ -13,6 +13,8 @@
     { "source": "/(.*)\\.(js|webmanifest)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
   ],
   "functions": {
-    "api/grade.js": { "maxDuration": 30 }
+    "api/grade.js": { "maxDuration": 30 },
+    "api/push-subscribe.js": { "maxDuration": 10 },
+    "api/cron-remind.js": { "maxDuration": 60 }
   }
 }

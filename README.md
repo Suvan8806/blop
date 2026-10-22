@@ -63,7 +63,7 @@ Match pairs: 4 `[term, definition]` pairs; definitions are shuffled. A wrong pai
 Keyboard: number keys pick options (or the next step to place), Backspace removes the last placed step,
 match uses numbers for terms and letters for definitions, and Enter checks or continues.
 
-After editing, bump `CACHE` in `sw.js` (e.g. "blop-v8") so phones pick up the change, and add any new file to its `ASSETS` list.
+After editing, bump `CACHE` in `sw.js` (e.g. "blop-v10") so phones pick up the change, and add any new file to its `ASSETS` list.
 
 Progress is stored in the browser on each device. Signing in (optional, see below) syncs it across devices.
 
@@ -148,7 +148,7 @@ and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
 - `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
 - `config.js`: Supabase URL and anon key (empty = no sync).
 - `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
-- `supabase/schema.sql`: the `progress` table and its row-level security policies, and the `grade_usage` table.
+- `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage` table and the `push_subs` table.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
@@ -157,7 +157,12 @@ and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
 - `mock.js`: pure mock-interview logic (answer checks, clamping grades, attempt history and trends). Tested in node.
 - `mock-ui.js`: the Mock tab.
 - `api/grade.js`, `api/_lib/`: the grading function (see "Mock interviews"). Tested in node with a stubbed fetch.
-- `app.js`: tabs, the Learn and Profile screens.
+- `push-logic.js`: pure daily-reminder helpers (push support, the iPhone Home Screen rule, the VAPID key). Tested in node.
+- `push-ui.js`: the Profile "Daily reminder" panel (turn push reminders on/off, pick the time).
+- `api/push-subscribe.js`, `api/cron-remind.js`, `api/_lib/push-*.js`, `api/_lib/cron-remind-handler.js`,
+  `api/_lib/curriculum.js`: the reminder functions (see "Streak reminders"). Tested in node with a stubbed fetch and web-push.
+- `.github/workflows/remind.yml`: the hourly GitHub Action that triggers the reminders.
+- `app.js`: tabs, the Learn and Profile screens. `?tab=today` (or another tab name) opens that tab.
 
 They share code through `window.Blop`.
 
@@ -235,10 +240,67 @@ signed out, the tab explains that and keeps the draft.
    service-role (or `sb_secret_...`) key from Supabase → Project Settings → API; it must never go in `config.js`.
    `GEMINI_API_KEY` is optional. Redeploy after adding env vars.
 
+## Streak reminders (push notifications)
+Profile → **Daily reminder** turns on a notification at your reminder time (default 8 pm, the same synced setting the
+Today tab's calendar reminder uses) on days you haven't hit today's goal yet: your study plan's target for today when a
+plan is active, otherwise your daily goal. The text is "Keep your N-day streak: 3 lessons left today" (or a generic
+nudge when the account has no synced progress). Tapping it opens blop on the Today tab.
+
+- Needs sign-in (sync): subscriptions are stored per account in Supabase. Signed out, the panel says so.
+- Turn it on on each device you want reminders on. Whether *this* device is subscribed is kept on the device
+  (`blop-push` in localStorage); the time is synced, and a device re-saves its subscription when the time or its
+  time zone changed.
+- iPhone/iPad: Web Push only works in the Home Screen app (iOS 16.4+). In Safari the panel says "Add blop to your
+  Home Screen first (Share → Add to Home Screen), then turn this on". Browsers without push see an explanation instead
+  of the toggle. If notifications were blocked, the panel says how to allow them again.
+
+### How it works
+- Web Push with VAPID. `config.js` has the public key (`vapidPublicKey`); the private key is only the
+  `VAPID_PRIVATE_KEY` env var. `web-push` is the only npm dependency (`package.json`, no build script: Vercel serves the
+  static files as before and bundles `web-push` into the functions).
+- `POST /api/push-subscribe` `{ subscription, time: "HH:MM", tz }` with the Supabase bearer token saves the browser's
+  subscription; `DELETE` `{ endpoint }` removes it. Same-origin only, the token is checked against
+  `SUPABASE_URL/auth/v1/user`, the endpoint must be https on a known push service (fcm.googleapis.com,
+  updates.push.services.mozilla.com, web.push.apple.com, *.push.apple.com, *.notify.windows.com), the time must be
+  HH:MM and the zone a real IANA zone. Writes use the service-role key. At most 10 subscriptions per account: a new
+  device beyond that replaces the oldest.
+- `/api/cron-remind` (`Authorization: Bearer <CRON_SECRET>`, compared in constant time) runs hourly. A subscription is
+  due when its local time is within the hour after its reminder time and it hasn't been reminded that local day
+  (`last_sent_day`). The run claims the day first (so overlapping runs can't double-send), loads the user's synced
+  `progress` row, works out today's goal with the app's own `plan.js`/`state.js` and curriculum, and sends only if it
+  isn't done. Subscriptions the push service reports as gone (404/410) are deleted; other failures un-claim the day.
+  It stops starting new sends after 45 s (`maxDuration` 60 s).
+- The service worker shows the notification (title "blop", icon-192) and focuses or opens `/?tab=today` on tap.
+- The reminder uses the progress the account last synced, so lessons finished offline and not yet synced don't count.
+
+### Setup
+1. In Supabase → SQL Editor, run `supabase/schema.sql` again (it's safe to re-run). The new section creates
+   `push_subs` with RLS on and no policies, so only the service role can read or write it.
+2. Env vars on Vercel (Production and Preview) are already set: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+   `VAPID_SUBJECT` and `CRON_SECRET`. The functions also need `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+   `SUPABASE_SERVICE_ROLE_KEY` (see "Mock interviews → Setup"), and `config.js` needs the Supabase URL and anon key so
+   people can sign in. To rotate the VAPID keys, run `npx web-push generate-vapid-keys`, update both env vars and
+   `config.js`; existing subscriptions then stop working and each device has to turn reminders on again.
+3. The GitHub Action `.github/workflows/remind.yml` calls `https://blop-nu.vercel.app/api/cron-remind` at :05 every
+   hour (Vercel Hobby cron only runs daily). It uses the repository secret `CRON_SECRET` (already set; it must match
+   the Vercel env var). It targets production only, and GitHub only runs scheduled workflows from the default branch,
+   so it starts after this is merged to `main`. Until the function is deployed to production the call returns 404,
+   which the workflow logs as a warning without failing. GitHub can start scheduled runs late, and a run that starts
+   more than an hour after someone's reminder time skips them that day.
+4. After merging, trigger a run by hand with `gh workflow run remind.yml` and check it with `gh run list --workflow remind.yml`.
+
+### Testing on a phone
+- Android (Chrome): open the site, sign in on Profile, turn on Daily reminder and allow notifications. Set the time to
+  the current hour (e.g. 14:00 at 14:20), make sure today's goal isn't done, then run `gh workflow run remind.yml`.
+- iPhone (iOS 16.4+): Safari → Share → Add to Home Screen, open blop from the Home Screen, sign in with the email code,
+  then do the same as Android. In Safari itself the panel only explains the Home Screen step.
+- Each device gets at most one reminder per day; to test again the same day, clear `last_sent_day` for that row in
+  Supabase → Table Editor → `push_subs`.
+
 ## Reset
 Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
 times, today's counts and the study plan, on this device and (through sync) on your other devices. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js`.
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js test/push-core.test.js test/push-handlers.test.js test/push-logic.test.js test/sw-push.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

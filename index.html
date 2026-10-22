@@ -183,6 +183,17 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .remind{display:flex;gap:10px;align-items:stretch}
 .remind input{font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:0 12px;min-width:0}
 .remind .cta{flex:1}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:2px 0 4px}
+.ptime{font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:10px 12px;min-width:0}
+.switch{display:inline-flex;align-items:center;gap:10px;font-weight:700;cursor:pointer}
+.switch input{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:54px;height:32px;margin:0;border-radius:999px;
+  background:var(--sunk);border:2px solid var(--line);cursor:pointer;transition:background .15s,border-color .15s}
+.switch input::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:var(--surface);
+  box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked{background:var(--green);border-color:var(--green)}
+.switch input:checked::after{transform:translateX(22px)}
+.switch input:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+.switch input:disabled{opacity:.55;cursor:default}
 /* subjects */
 .subj{display:flex;gap:4px;margin-top:12px;background:var(--sunk);border-radius:14px;padding:4px}
 .subj button{flex:1 1 auto;min-height:42px;padding:8px 10px;border-radius:11px;font-weight:700;font-size:.92rem;color:var(--soft);white-space:nowrap}
@@ -385,6 +396,7 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/state.js"></script>
 <script src="/merge.js"></script>
 <script src="/sync-logic.js"></script>
+<script src="/push-logic.js"></script>
 <script src="/logic.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
@@ -393,6 +405,7 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/config.js"></script>
 <script src="/sync.js"></script>
 <script src="/sync-ui.js"></script>
+<script src="/push-ui.js"></script>
 <script src="/mock-ui.js"></script>
 <script src="/app.js"></script>
 </body>

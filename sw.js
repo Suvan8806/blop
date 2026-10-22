@@ -1,7 +1,7 @@
 // Offline support: serve cached files instantly, refresh them in the background.
-const CACHE = "blop-v8";
-const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/plan.js", "/srs.js", "/jobs.js", "/mock-prompts.js", "/mock.js", "/state.js", "/merge.js", "/sync-logic.js", "/logic.js",
-  "/core.js", "/qtypes.js", "/today.js", "/jobs-ui.js", "/config.js", "/sync.js", "/sync-ui.js", "/mock-ui.js", "/app.js", "/manifest.webmanifest",
+const CACHE = "blop-v9";
+const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/plan.js", "/srs.js", "/jobs.js", "/mock-prompts.js", "/mock.js", "/state.js", "/merge.js", "/sync-logic.js", "/push-logic.js", "/logic.js",
+  "/core.js", "/qtypes.js", "/today.js", "/jobs-ui.js", "/config.js", "/sync.js", "/sync-ui.js", "/push-ui.js", "/mock-ui.js", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 const ASSET_PATHS = new Set(ASSETS);
 // Sign-in redirects carry one-time secrets in the URL; such a URL is never stored in the cache.
@@ -73,4 +73,24 @@ self.addEventListener("fetch", e => {
       return (await network) || new Response("", { status: 504 });
     }));
   }
+});
+
+/* Daily streak reminder (sent by /api/cron-remind). The title and icon are fixed here; only the text comes
+   from the payload, and a tap always opens the app's Today tab (never a URL from the payload). */
+const REMIND_URL = "/?tab=today";
+self.addEventListener("push", e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = {}; }
+  const body = d && typeof d.body === "string" && d.body ? d.body.slice(0, 200) : "Time for today’s blop lessons.";
+  e.waitUntil(self.registration.showNotification("blop", {
+    body, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", tag: "blop-streak", data: { url: REMIND_URL }
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    const open = list.find(c => new URL(c.url).origin === self.location.origin);
+    if (open) { open.postMessage({ type: "blop-open", tab: "today" }); return open.focus(); }
+    return self.clients.openWindow(REMIND_URL);
+  }));
 });

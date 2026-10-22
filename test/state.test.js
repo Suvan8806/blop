@@ -41,7 +41,7 @@ test("settings changes are stamped and only touch settings", () => {
 test("reminder times are validated", () => {
   assert.equal(St.validTime("08:30"), "08:30");
   assert.equal(St.validTime("25:00"), St.DEFAULT_REMIND);
-  assert.equal(St.validTime(undefined), "19:00");
+  assert.equal(St.validTime(undefined), "20:00");
 });
 
 test("reset keeps mock interview history", () => {

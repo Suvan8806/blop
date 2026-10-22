@@ -102,3 +102,35 @@ $$;
 
 revoke all on function public.refund_grade_usage(uuid) from public, anon, authenticated;
 grant execute on function public.refund_grade_usage(uuid) to service_role;
+
+-- ============================================================================================================
+-- Streak reminders: Web Push subscriptions (feature 6). Runs with the parts above (also safe to re-run).
+-- One row per browser push subscription. /api/push-subscribe writes it (after checking the user's sign-in) and
+-- /api/cron-remind reads it hourly, both with the service-role key. RLS is on with NO policies, so the anon key
+-- and signed-in users can't read or write this table at all; only the service role (which bypasses RLS) can.
+-- last_sent_day: the user's local date of the last reminder, so each day gets at most one.
+-- ============================================================================================================
+
+create table if not exists public.push_subs (
+  endpoint      text primary key,
+  user_id       uuid not null references auth.users on delete cascade,
+  sub           jsonb not null,
+  remind_time   text not null,
+  tz            text not null,
+  last_sent_day date,
+  created_at    timestamptz default now()
+);
+
+alter table public.push_subs drop constraint if exists push_subs_endpoint_https;
+alter table public.push_subs add constraint push_subs_endpoint_https check (endpoint like 'https://%' and length(endpoint) <= 2048);
+alter table public.push_subs drop constraint if exists push_subs_remind_time;
+alter table public.push_subs add constraint push_subs_remind_time check (remind_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$');
+alter table public.push_subs drop constraint if exists push_subs_tz_len;
+alter table public.push_subs add constraint push_subs_tz_len check (length(tz) between 1 and 64);
+alter table public.push_subs drop constraint if exists push_subs_sub_object;
+alter table public.push_subs add constraint push_subs_sub_object check (jsonb_typeof(sub) = 'object' and pg_column_size(sub) < 4000);
+
+create index if not exists push_subs_user_id_idx on public.push_subs (user_id);
+
+alter table public.push_subs enable row level security;
+revoke all on public.push_subs from anon, authenticated;

@@ -2,7 +2,7 @@
    resetting progress, XP per device, and cleaning saved or synced data into safe bounds.
    Pure functions, no DOM, tested in node. core.js loads and saves S; merge.js merges two copies. */
 (function (root) {
-const DEFAULT_REMIND = "19:00";
+const DEFAULT_REMIND = "20:00"; // 8 pm: the daily reminder and the calendar alert
 /* Settings travel together and carry S.settingsUpdatedAt, so the most recently changed side wins a merge. */
 const SETTINGS_KEYS = ["goal", "jobTarget", "subject", "remind", "skip"];
 /* Every top-level field S may have. Anything else (from an old build, another app, or a bad remote copy) is dropped.
