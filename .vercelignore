@@ -1,0 +1,15 @@
+# Files Vercel must not upload or serve. Everything else in the repo is served as a public static file.
+# Keep package.json and package-lock.json (the /api functions need them to install web-push), api/, the app's
+# scripts and content files, icons/ and everything listed in sw.js ASSETS.
+/README.md
+/FEATURES.md
+/docs
+/supabase
+/test
+/.github
+/node_modules
+/.gstack
+/.ruff_cache
+/.env*
+/.gitignore
+/.vercelignore

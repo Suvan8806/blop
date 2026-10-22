@@ -12,7 +12,7 @@ const AUTH_KEY = "blop-auth";        // where supabase-js keeps the session on t
 const META_KEY = "blop-sync-meta";   // { lastSynced, owner } for this device; not part of S, so it isn't synced.
                                      // owner: the user id this device's data was last synced with.
 const TABLE = "progress";
-const REQUEST_TIMEOUT_MS = 15000, MAX_CONFLICT_RETRIES = 3, RESYNC_AFTER_MS = 60000;
+const REQUEST_TIMEOUT_MS = 15000, MAX_CONFLICT_RETRIES = 3, RESYNC_AFTER_MS = 60000, PUSH_CLEAR_TIMEOUT_MS = 6000;
 
 const configured = SL.isConfigured(CFG);
 const listeners = new Set();
@@ -77,6 +77,9 @@ function adopt(user, syncNow){
       signOutNow();
       return;
     }
+    // The previous account's session is already gone, so its reminder can't be deleted on the server: unsubscribe
+    // this device instead (push-ui.js), which stops delivery. This also clears blop-push straight away.
+    clearPush(null);
     B.wipe();
     refreshScreen();
     writeMeta({ owner: user.id, lastSynced: 0 });
@@ -184,9 +187,28 @@ async function signOutNow(){
     changed({ user: null, phase: "out", step: "email" });
   }
 }
-const signOut = () => act(signOutNow);
-/* Sign out, then forget everything on this device: progress, jobs, mock attempts, drafts and settings. */
+const signOut = () => act(signOutNow); // keeps this device's reminder; push-ui.js re-checks it on the next sign-in
+/* A fresh access token for our own API (/api/grade, /api/push-subscribe), or "" when signed out. getSession
+   refreshes an expired one. */
+async function token(){
+  if (!sb || !st.user) return "";
+  const { data } = await sb.auth.getSession();
+  return data && data.session && data.session.access_token ? data.session.access_token : "";
+}
+/* Forget this device's daily reminder (push-ui.js), with the token to delete it on the server when it still works.
+   Best effort and bounded, so signing out never waits long on it. */
+function clearPush(getToken){
+  if (typeof B.clearPushDevice !== "function") return Promise.resolve();
+  let t;
+  const limit = new Promise(resolve => { t = setTimeout(resolve, PUSH_CLEAR_TIMEOUT_MS); });
+  let run; // called synchronously: it clears blop-push before returning, ahead of any sign-in that follows
+  try { run = Promise.resolve(B.clearPushDevice(getToken)).catch(() => {}); } catch (e) { run = Promise.resolve(); }
+  return Promise.race([run, limit]).finally(() => clearTimeout(t));
+}
+/* Sign out, then forget everything on this device: progress, jobs, mock attempts, drafts, settings and the
+   daily reminder (removed on the server first, while this account's token is still valid). */
 const signOutAndClear = () => act(async () => {
+  await clearPush(token);
   await signOutNow();
   B.wipe();
   writeMeta({});
@@ -231,12 +253,7 @@ B.sync = {
   signedIn: () => !!st.user,
   soon: () => { if (st.user) sched.soon(); },
   now: () => { if (st.user) { changed({ syncError: "" }); sched.flush(); } },
-  /* A fresh access token for our own API (/api/grade), or "" when signed out. getSession refreshes an expired one. */
-  token: async () => {
-    if (!sb || !st.user) return "";
-    const { data } = await sb.auth.getSession();
-    return data && data.session && data.session.access_token ? data.session.access_token : "";
-  },
+  token,
   google, sendCode, verify, signOut, signOutAndClear,
   setEmail: email => { st.email = String(email || ""); },
   back: () => changed({ step: "email", error: "" })

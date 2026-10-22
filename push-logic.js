@@ -32,6 +32,26 @@ function subscribeBody(subJSON, time, tz) {
 /* Does this device's saved subscription need re-posting (time or time zone changed since it was saved)? */
 function needsRepost(saved, time, tz) { return !!(saved && saved.on) && (saved.time !== time || saved.tz !== tz); }
 
-const PushLogic = { isIOS, isStandalone, support, validKey, keyBytes, subscribeBody, needsRepost };
+/* What to do with this device's subscription after sign-in (saved: the blop-push entry, which records the account
+   it was saved for; subEndpoint: the browser's current subscription, or "" when it has none).
+   "none": nothing to do. "clear": the browser dropped it, so show it as off. "drop": it was saved for another
+   account (signed out without clearing, then someone else signed in), so unsubscribe it here and show it as off;
+   the push service then reports it gone and the server deletes it. "save": post it again (time, zone or endpoint
+   changed, or an older entry that doesn't record its account). */
+function reconcileAction(saved, userId, subEndpoint, time, tz) {
+  if (!saved || !saved.on) return "none";
+  if (!subEndpoint) return "clear";
+  if (saved.user && saved.user !== userId) return "drop";
+  if (!saved.user || saved.endpoint !== subEndpoint || needsRepost(saved, time, tz)) return "save";
+  return "none";
+}
+/* "Sign out and clear this device": which endpoint to delete on the server (while the token still works), and
+   whether there is a browser subscription to unsubscribe. The browser's own subscription wins over the saved one. */
+function cleanupPlan(saved, subEndpoint) {
+  const endpoint = subEndpoint || (saved && typeof saved.endpoint === "string" ? saved.endpoint : "");
+  return { deleteEndpoint: endpoint, unsubscribe: !!subEndpoint };
+}
+
+const PushLogic = { isIOS, isStandalone, support, validKey, keyBytes, subscribeBody, needsRepost, reconcileAction, cleanupPlan };
 if (typeof module !== "undefined" && module.exports) module.exports = PushLogic; else root.PushLogic = PushLogic;
 })(typeof window !== "undefined" ? window : globalThis);

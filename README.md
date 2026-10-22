@@ -105,8 +105,9 @@ Then bump `CACHE` in `sw.js` and deploy. (`config.js` is fetched network-first, 
   are coalesced). Each push re-reads and merges first, and only writes if nobody else wrote in between.
 - Offline, pushes wait and run when the browser is back online. "Sync now" runs one immediately.
 - Signing out only forgets the session on this device (including any half-finished sign-in's PKCE verifier);
-  progress stays. "Sign out and clear this device" also removes progress, job applications, mock interviews and
-  drafts from this device, for a shared phone or laptop.
+  progress stays (and so does this device's daily reminder). "Sign out and clear this device" also removes progress,
+  job applications, mock interviews and drafts from this device, for a shared phone or laptop, and turns off its
+  daily reminder (deleted on the server while the token still works, then unsubscribed in the browser).
 - The device remembers which account its data was synced with (`blop-sync-meta` in localStorage). If a different
   account signs in while this device has data, it asks whether to start fresh for that account (clearing the
   device first) or sign out, so one person's data is never merged into another's account.
@@ -136,6 +137,9 @@ requests only to this site, Supabase and Google Fonts, no framing, no plugins), 
 that way, or the CSP blocks them. Google sign-in is a top-level navigation to supabase.co, which the CSP allows.
 The service worker caches only the files in its `ASSETS` list and Google Fonts, never `/api/` or the Supabase API,
 and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
+Vercel serves every uploaded repo file publicly, so `.vercelignore` keeps this README, `supabase/`, `test/`,
+`.github/` and `node_modules/` out of the deployment (`package.json` and `package-lock.json` stay: the functions
+need them for `web-push`).
 
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
@@ -249,7 +253,9 @@ nudge when the account has no synced progress). Tapping it opens blop on the Tod
 - Needs sign-in (sync): subscriptions are stored per account in Supabase. Signed out, the panel says so.
 - Turn it on on each device you want reminders on. Whether *this* device is subscribed is kept on the device
   (`blop-push` in localStorage); the time is synced, and a device re-saves its subscription when the time or its
-  time zone changed.
+  time zone changed. The entry records the account it was turned on for: if someone else signs in later (after a
+  plain sign-out), the device is unsubscribed and the panel shows Off, so they never get the other account's
+  reminders. Starting fresh for a different account (the account-switch prompt) unsubscribes the device too.
 - iPhone/iPad: Web Push only works in the Home Screen app (iOS 16.4+). In Safari the panel says "Add blop to your
   Home Screen first (Share → Add to Home Screen), then turn this on". Browsers without push see an explanation instead
   of the toggle. If notifications were blocked, the panel says how to allow them again.
@@ -285,7 +291,8 @@ nudge when the account has no synced progress). Tapping it opens blop on the Tod
    hour (Vercel Hobby cron only runs daily). It uses the repository secret `CRON_SECRET` (already set; it must match
    the Vercel env var). It targets production only, and GitHub only runs scheduled workflows from the default branch,
    so it starts after this is merged to `main`. Until the function is deployed to production the call returns 404,
-   which the workflow logs as a warning without failing. GitHub can start scheduled runs late, and a run that starts
+   and until its env vars are set it returns 503; the workflow logs both (and an unreachable site) as warnings
+   without failing. A 401 (secret mismatch) or any other error fails the run. GitHub can start scheduled runs late, and a run that starts
    more than an hour after someone's reminder time skips them that day.
 4. After merging, trigger a run by hand with `gh workflow run remind.yml` and check it with `gh run list --workflow remind.yml`.
 

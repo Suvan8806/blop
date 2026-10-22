@@ -50,3 +50,33 @@ test("a saved subscription is re-posted when the time or zone changed", () => {
   assert.equal(PL.needsRepost({ on: false, time: "x" }, "20:00", "UTC"), false);
   assert.equal(PL.needsRepost(null, "20:00", "UTC"), false);
 });
+
+test("after sign-in, a subscription saved for another account is dropped, not re-saved", () => {
+  const saved = { on: true, time: "20:00", tz: "UTC", endpoint: "https://fcm.googleapis.com/a", user: "user-a" };
+  assert.equal(PL.reconcileAction(saved, "user-b", saved.endpoint, "20:00", "UTC"), "drop");
+  assert.equal(PL.reconcileAction(saved, "user-a", saved.endpoint, "20:00", "UTC"), "none");
+  // The browser dropped the subscription: show it as off, whoever saved it.
+  assert.equal(PL.reconcileAction(saved, "user-b", "", "20:00", "UTC"), "clear");
+  assert.equal(PL.reconcileAction(saved, "user-a", "", "20:00", "UTC"), "clear");
+});
+
+test("after sign-in, the same account re-saves when time, zone or endpoint changed", () => {
+  const saved = { on: true, time: "20:00", tz: "UTC", endpoint: "https://fcm.googleapis.com/a", user: "user-a" };
+  assert.equal(PL.reconcileAction(saved, "user-a", saved.endpoint, "21:00", "UTC"), "save");
+  assert.equal(PL.reconcileAction(saved, "user-a", saved.endpoint, "20:00", "Europe/London"), "save");
+  assert.equal(PL.reconcileAction(saved, "user-a", "https://fcm.googleapis.com/b", "20:00", "UTC"), "save");
+  // An older entry without an account is saved again, which records the account.
+  const { user, ...legacy } = saved;
+  assert.equal(PL.reconcileAction(legacy, "user-a", saved.endpoint, "20:00", "UTC"), "save");
+  // Off, or nothing saved: nothing to do.
+  assert.equal(PL.reconcileAction({ on: false }, "user-a", saved.endpoint, "20:00", "UTC"), "none");
+  assert.equal(PL.reconcileAction(null, "user-a", saved.endpoint, "20:00", "UTC"), "none");
+});
+
+test("clearing the device deletes the browser's endpoint, falling back to the saved one", () => {
+  assert.deepEqual(PL.cleanupPlan({ endpoint: "https://e/saved" }, "https://e/live"), { deleteEndpoint: "https://e/live", unsubscribe: true });
+  assert.deepEqual(PL.cleanupPlan({ endpoint: "https://e/saved" }, ""), { deleteEndpoint: "https://e/saved", unsubscribe: false });
+  assert.deepEqual(PL.cleanupPlan({}, ""), { deleteEndpoint: "", unsubscribe: false });
+  assert.deepEqual(PL.cleanupPlan(null, undefined), { deleteEndpoint: "", unsubscribe: false });
+  assert.deepEqual(PL.cleanupPlan({ endpoint: 42 }, ""), { deleteEndpoint: "", unsubscribe: false });
+});

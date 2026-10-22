@@ -8,8 +8,8 @@ if (!window.Blop || !window.Blop.S || !window.PushLogic) return; // old cached p
 const B = window.Blop, PL = window.PushLogic, CFG = window.BLOP_CONFIG || {};
 const { S, esc, setSettings, toast } = B;
 
-const LOCAL_KEY = "blop-push";          // { on, time, tz, endpoint } for this device; not synced
-const READY_TIMEOUT_MS = 10000, REQUEST_TIMEOUT_MS = 15000;
+const LOCAL_KEY = "blop-push";          // { on, time, tz, endpoint, user } for this device; not synced
+const READY_TIMEOUT_MS = 10000, REQUEST_TIMEOUT_MS = 15000, CLEAR_TIMEOUT_MS = 4000;
 const DENIED = "Notifications are blocked for blop. Allow them in your browser or phone settings (Settings → Notifications → blop on iPhone), then try again.";
 const st = { busy: false, error: "" };
 
@@ -22,6 +22,7 @@ function env() {
 }
 function readLocal() { try { const v = JSON.parse(localStorage.getItem(LOCAL_KEY)); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; } }
 function writeLocal(v) { try { if (v) localStorage.setItem(LOCAL_KEY, JSON.stringify(v)); else localStorage.removeItem(LOCAL_KEY); } catch (e) {} }
+function userId() { const u = B.sync && B.sync.state().user; return u && u.id ? u.id : ""; }
 function zone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
 
 /* ios-install | unsupported | off (sign-in or push not configured) | checking | out | in */
@@ -46,7 +47,10 @@ function askPermission() {
 async function api(method, body) {
   const token = await B.sync.token();
   if (!token) throw new Error("Your sign-in expired. Sign in again above.");
-  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), REQUEST_TIMEOUT_MS);
+  return request(method, body, token, REQUEST_TIMEOUT_MS);
+}
+async function request(method, body, token, timeoutMs) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeoutMs);
   let r;
   try {
     r = await fetch("/api/push-subscribe", { method, signal: ctl.signal, credentials: "same-origin",
@@ -59,8 +63,9 @@ async function api(method, body) {
 }
 async function save(sub) {
   const time = S.remind, tz = zone();
+  const user = userId();
   await api("POST", PL.subscribeBody(sub.toJSON(), time, tz));
-  writeLocal({ on: true, time, tz, endpoint: sub.endpoint });
+  writeLocal({ on: true, time, tz, endpoint: sub.endpoint, user });
 }
 
 /* ---------- actions ---------- */
@@ -108,19 +113,49 @@ function changeTime(value) {
   });
 }
 /* After sign-in: if this device is subscribed but the time (changed on another device) or time zone moved,
-   save it again; if the browser dropped the subscription, show it as off. */
+   save it again; if the browser dropped the subscription, show it as off; if it was turned on by another account
+   (signed out without clearing the device), unsubscribe it so this account doesn't get that account's reminders.
+   Runs at most once a minute per account, and straight away when a different account signs in. */
 const RECONCILE_EVERY_MS = 60000;
-let reconciling = false, reconciledAt = 0;
+let reconciling = false, reconciledAt = 0, reconciledFor = "";
 async function reconcile() {
-  const saved = readLocal();
-  if (reconciling || st.busy || !saved.on || mode() !== "in" || Date.now() - reconciledAt < RECONCILE_EVERY_MS) return;
-  reconciling = true; reconciledAt = Date.now();
+  const saved = readLocal(), uid = userId();
+  if (reconciling || st.busy || !saved.on || mode() !== "in" || !uid) return;
+  if (uid === reconciledFor && Date.now() - reconciledAt < RECONCILE_EVERY_MS) return;
+  reconciling = true; reconciledAt = Date.now(); reconciledFor = uid;
   try {
     const sub = await (await swReady()).pushManager.getSubscription();
-    if (!sub) { writeLocal(null); paint(); return; }
-    if (PL.needsRepost(saved, S.remind, zone()) || saved.endpoint !== sub.endpoint) await save(sub);
+    const action = PL.reconcileAction(saved, uid, sub ? sub.endpoint : "", S.remind, zone());
+    if (action === "drop") { try { await sub.unsubscribe(); } catch (e) {} }
+    if (action === "clear" || action === "drop") { writeLocal(null); paint(); }
+    else if (action === "save") await save(sub);
   } catch (e) { /* tried again on the next sign-in or app open */ }
   finally { reconciling = false; }
+}
+
+/* "Sign out and clear this device" and the account-switch wipe: forget this device's reminder so the next person
+   doesn't get the previous account's. getToken (optional) gives the still-valid token of the account being signed
+   out, to delete the subscription on the server first (best effort, short timeout). Then the browser subscription
+   is unsubscribed, which stops delivery on its own: the push service reports it gone and the server deletes it.
+   blop-push is cleared before anything async, so a sign-in that follows can't re-save it for the new account. */
+async function clearDevice(getToken) {
+  const saved = readLocal();
+  writeLocal(null);
+  st.error = "";
+  let sub = null;
+  try {
+    const reg = "serviceWorker" in navigator ? await withTimeout(navigator.serviceWorker.getRegistration(), CLEAR_TIMEOUT_MS, "timeout") : null;
+    sub = reg && reg.pushManager ? await withTimeout(reg.pushManager.getSubscription(), CLEAR_TIMEOUT_MS, "timeout") : null;
+  } catch (e) {}
+  const plan = PL.cleanupPlan(saved, sub ? sub.endpoint : "");
+  if (plan.deleteEndpoint && getToken) {
+    try {
+      const token = await withTimeout(Promise.resolve(getToken()), CLEAR_TIMEOUT_MS, "timeout");
+      if (token) await request("DELETE", { endpoint: plan.deleteEndpoint }, token, CLEAR_TIMEOUT_MS);
+    } catch (e) { /* unsubscribing below still stops delivery */ }
+  }
+  if (plan.unsubscribe) { try { await sub.unsubscribe(); } catch (e) {} }
+  paint();
 }
 
 /* ---------- panel ---------- */
@@ -165,5 +200,6 @@ setTimeout(reconcile, 0);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reconcile(); });
 
 B.remindPanelHTML = remindPanelHTML;
+B.clearPushDevice = clearDevice;
 B.bindRemindPanel = app => { const box = app.querySelector("#pushbox"); if (box) bind(box); };
 })();
