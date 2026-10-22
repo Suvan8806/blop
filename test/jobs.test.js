@@ -31,6 +31,16 @@ test("only http and https links are kept", () => {
   assert.equal(J.safeLink(42), "");
 });
 
+test("links with a port get https:// like any bare address, and schemes are still checked", () => {
+  assert.equal(J.safeLink("example.com:8080/job"), "https://example.com:8080/job");
+  assert.equal(J.safeLink("jobs.acme.io:443"), "https://jobs.acme.io/");
+  assert.equal(J.safeLink("http://example.com:8080/job"), "http://example.com:8080/job");
+  assert.equal(J.safeLink("javascript:1"), "");         // read as host "javascript", which has no dot
+  assert.equal(J.safeLink("javascript://acme.com/%0Aalert(1)"), "");
+  assert.equal(J.safeLink("mailto:a@acme.com"), "");
+  assert.equal(J.safeLink("localhost:3000"), "");
+});
+
 test("update changes valid fields only, bumps updatedAt and leaves the list untouched", () => {
   const jobs = [job("a", T), job("b", T)];
   const out = J.update(jobs, "a", { status: "oa", company: " Beta ", day: "x", link: "javascript:x", bogus: 1 }, NOW);
@@ -40,8 +50,22 @@ test("update changes valid fields only, bumps updatedAt and leaves the list unto
   assert.equal(J.update(jobs, "a", { status: "hired" }, NOW)[0].status, "applied");
 });
 
-test("remove deletes by id", () => {
-  assert.deepEqual(J.remove([job("a", T), job("b", T)], "a").map(j => j.id), ["b"]);
+test("remove leaves a tombstone that every reader skips", () => {
+  const jobs = J.remove([job("a", T, "oa"), job("b", T)], "a", NOW);
+  assert.deepEqual(jobs[0], { id: "a", deleted: true, updatedAt: NOW });
+  assert.deepEqual(J.live(jobs).map(j => j.id), ["b"]);
+  assert.equal(J.countOn(jobs, T), 1);
+  assert.equal(J.streak(J.remove([job("a", T)], "a", NOW), T), 0);
+  assert.equal(J.stats(jobs, T).total, 1);
+  assert.equal(J.stats(jobs, T).responses, 0);
+  assert.equal(J.counts(jobs).oa, 0);
+  assert.deepEqual(J.filter(jobs).map(j => j.id), ["b"]);
+  assert.equal(J.update(jobs, "a", { status: "offer" }, NOW + 1)[0], jobs[0]); // tombstones aren't edited
+});
+
+test("sanitize keeps tombstones, repairing their updatedAt", () => {
+  const out = J.sanitize([{ id: "a", deleted: true, updatedAt: 5, company: "x" }, { id: "b", deleted: true }, { id: "c", deleted: "yes" }]);
+  assert.deepEqual(out, [{ id: "a", deleted: true, updatedAt: 5 }, { id: "b", deleted: true, updatedAt: 0 }]);
 });
 
 test("streak counts days in a row with an application, surviving until today is done", () => {

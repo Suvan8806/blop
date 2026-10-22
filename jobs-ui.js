@@ -3,10 +3,10 @@
 (() => {
 if (!window.Blop || !window.Blop.S || !window.Jobs) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop;
-const { S, I, $, esc, save, today, toast, liveStreak, plural } = B;
+const { S, I, $, esc, commit, setSettings, today, toast, liveStreak, plural } = B;
 
 let view = { status: "all", q: "" };
-let form = null;   // null, or { id: null for a new one / the id being edited }
+let form = null;   // null, or { id: null for a new one / the id being edited, draft: what's typed so far }
 let picking = null; // id whose status picker is open
 
 const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Jobs.newId();
@@ -31,7 +31,8 @@ function todayHTML(){
     ${form && !form.id ? formHTML(null) : ""}</div>`;
 }
 function formHTML(j){
-  const v = j || { company: "", role: "", link: "", day: today() };
+  // What's been typed survives re-renders (filter taps, search, sync) until Save or Cancel.
+  const v = { ...(j || { company: "", role: "", link: "", day: today() }), ...(form && form.draft) };
   return `<form class="jform" id="jform" novalidate>
     <label>Company<input name="company" maxlength="120" autocomplete="off" value="${esc(v.company)}"></label>
     <label>Role<input name="role" maxlength="120" autocomplete="off" value="${esc(v.role)}"></label>
@@ -68,13 +69,16 @@ function itemHTML(j){
 }
 function listHTML(){
   const list = Jobs.filter(S.jobs, view);
-  if (!S.jobs.length) return `<p class="empty">No applications yet. Tap +1 Applied each time you send one.</p>`;
+  // The application being edited stays in the list even if the search or filter no longer matches it.
+  const editing = form && form.id && S.jobs.find(j => j.id === form.id && !j.deleted);
+  if (editing && !list.includes(editing)) list.unshift(editing);
+  if (!Jobs.live(S.jobs).length) return `<p class="empty">No applications yet. Tap +1 Applied each time you send one.</p>`;
   if (!list.length) return `<p class="empty">Nothing matches.</p>`;
   return `<ul class="jobs">${list.map(itemHTML).join("")}</ul>`;
 }
 function filtersHTML(){
   const c = Jobs.counts(S.jobs);
-  const opts = [["all", "All", S.jobs.length], ...Jobs.STATUSES.map(([id, name]) => [id, name, c[id]])];
+  const opts = [["all", "All", Jobs.live(S.jobs).length], ...Jobs.STATUSES.map(([id, name]) => [id, name, c[id]])];
   return `<input type="search" id="jq" class="jsearch" placeholder="Search company" aria-label="Search by company" value="${esc(view.q)}">
     <div class="jfilt" role="group" aria-label="Filter by status">${opts.map(([id, name, n]) =>
       `<button data-filter="${id}" aria-pressed="${view.status === id}">${esc(name)} <small>${n}</small></button>`).join("")}</div>`;
@@ -94,13 +98,19 @@ function submit(el, render){
   if (form.id) S.jobs = Jobs.update(S.jobs, form.id, { company: v.company, role: v.role, link: v.link, ...(v.day !== null ? { day: v.day } : {}) }, now);
   else S.jobs = [...S.jobs, Jobs.create(v, { id: newId(), day: today(), now })];
   const added = !form.id;
-  form = null; save(); render();
+  form = null; commit(); render();
   if (added) toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
 }
 function bindForm(render){
   const fe = $("#jform");
   if (!fe) return;
   fe.onsubmit = e => { e.preventDefault(); submit(fe, render); };
+  fe.oninput = () => {
+    if (!form) return;
+    const f = new FormData(fe), day = Jobs.dayFromISO(String(f.get("day") || ""));
+    form = { ...form, draft: { company: String(f.get("company") || ""), role: String(f.get("role") || ""),
+      link: String(f.get("link") || ""), ...(day !== null ? { day } : {}) } };
+  };
   $("#jcancel").onclick = () => { form = null; render(); };
 }
 function bindList(app, render){
@@ -112,30 +122,32 @@ function bindList(app, render){
   });
   list.querySelectorAll("[data-set]").forEach(b => b.onclick = () => {
     S.jobs = Jobs.update(S.jobs, b.dataset.set, { status: b.dataset.status }, Date.now());
-    picking = null; save(); render();
+    picking = null; commit(); render();
     const c = app.querySelector(`[data-pick="${CSS.escape(b.dataset.set)}"]`); if (c) c.focus({ preventScroll: true });
   });
   list.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
-    form = { id: b.dataset.edit }; picking = null; render();
+    form = { id: b.dataset.edit, draft: null }; picking = null; render();
     const first = app.querySelector("#jform input"); if (first) first.focus({ preventScroll: true });
   });
   list.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
-    const j = S.jobs.find(x => x.id === b.dataset.del);
+    const j = S.jobs.find(x => x.id === b.dataset.del && !x.deleted);
     if (j && confirm(`Delete ${j.company ? `the ${j.company} application` : "this application"}? This can’t be undone.`)) {
-      S.jobs = Jobs.remove(S.jobs, j.id); save(); render();
+      S.jobs = Jobs.remove(S.jobs, j.id, Date.now());
+      if (form && form.id === j.id) form = null;
+      commit(); render();
     }
   });
 }
 function bind(app, render){
   $("#plus1").onclick = () => {
-    S.jobs = [...S.jobs, Jobs.create(null, { id: newId(), day: today(), now: Date.now() })]; save(); render();
+    S.jobs = [...S.jobs, Jobs.create(null, { id: newId(), day: today(), now: Date.now() })]; commit(); render();
     toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
   };
   $("#details").onclick = () => {
-    form = form && !form.id ? null : { id: null }; picking = null; render();
+    form = form && !form.id ? null : { id: null, draft: null }; picking = null; render();
     const first = app.querySelector("#jform input"); if (first) first.focus({ preventScroll: true });
   };
-  app.querySelectorAll("[data-tgt]").forEach(b => b.onclick = () => { S.jobTarget = Jobs.clampTarget(S.jobTarget + +b.dataset.tgt); save(); render(); });
+  app.querySelectorAll("[data-tgt]").forEach(b => b.onclick = () => { setSettings({ jobTarget: Jobs.clampTarget(S.jobTarget + +b.dataset.tgt) }); render(); });
   app.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
     view = { ...view, status: b.dataset.filter }; render();
     const f = app.querySelector(`[data-filter="${b.dataset.filter}"]`); if (f) f.focus({ preventScroll: true });
@@ -143,7 +155,12 @@ function bind(app, render){
   const q = $("#jq");
   q.oninput = () => { // only the list re-renders, so the search box keeps focus
     view = { ...view, q: q.value };
-    app.querySelector("#jlist").innerHTML = listHTML(); bindList(app, render);
+    const list = app.querySelector("#jlist");
+    const open = list.querySelector("li.editing"); // an open edit form is kept as is, focus and all
+    list.innerHTML = listHTML();
+    const slot = list.querySelector("li.editing");
+    if (open && slot) slot.replaceWith(open);
+    bindList(app, render);
   };
   bindList(app, render);
 }

@@ -72,6 +72,7 @@ Progress is stored in the browser on each device.
 - `plan.js`: pure study-plan and calendar logic. Tested in node.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
+- `state.js`: which saved fields are progress and which are settings; reset. Tested in node.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
@@ -88,14 +89,22 @@ from the count; units added to the app after a plan starts stay out of it until 
 The month calendar colours each plan day: target met, partly done, missed, upcoming or rest day. "Add to calendar" downloads an .ics file with a daily alert until the plan ends.
 
 ## Spaced repetition
-Finishing a lesson schedules a review for tomorrow. A review moves a lesson along 1 → 3 → 7 → 21 → 60 days when every
-question from it was right first try, and back to 1 day if any was wrong. The daily review takes up to 15 questions from
+Finishing a lesson schedules a review for tomorrow. A review moves a lesson along 1 → 3 → 7 → 21 → 60 days when at least
+two of its questions came up (or its only question, for a one-question lesson) and all were right first try, and back to
+1 day if any was wrong. If fewer came up, the lesson keeps its step and stays due. The daily review takes up to 15 questions from
 due lessons, previously missed questions first; with nothing due it offers extra practice instead.
 
 ## Jobs
 The Jobs tab logs job applications: "+1 Applied" records one for today in a single tap, and "Add details" takes a
 company, role, link and date. Each application has a status (applied, OA, phone screen, onsite, offer, rejected,
-ghosted). The response rate counts applications whose status moved past Applied, except Ghosted. Links must be http(s).
+ghosted). The response rate counts applications whose status moved past Applied, except Ghosted. Links must be http(s);
+a bare address like `example.com:8080/job` gets `https://` added. Deleting an application leaves a small tombstone
+`{id, deleted:true, updatedAt}` so the deletion can sync; it's hidden everywhere.
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js`.
+## Reset
+Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
+times, today's counts and the study plan. It keeps job applications and settings (daily goal, job target, subject,
+reminder time, plan units).
+
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

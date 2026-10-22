@@ -1,6 +1,6 @@
 // Offline support: serve cached files instantly, refresh them in the background.
-const CACHE = "blop-v5";
-const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/plan.js", "/srs.js", "/jobs.js", "/logic.js",
+const CACHE = "blop-v6";
+const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/plan.js", "/srs.js", "/jobs.js", "/state.js", "/logic.js",
   "/core.js", "/qtypes.js", "/today.js", "/jobs-ui.js", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 

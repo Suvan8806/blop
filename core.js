@@ -13,29 +13,54 @@ const QS = Object.fromEntries(ALL.flatMap(l => l.qs.map(q => [q.id, q])));
 
 /* ---------- state ---------- */
 function today(){ const d = new Date(); return Math.floor((d - d.getTimezoneOffset()*60000) / 864e5); }
-function load(){
-  let s = null;
-  try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
+const ST = window.BlopState;
+const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+/* Fill defaults and upgrade old saved shapes. Also used on merged data from sync. Returns a new object. */
+function normalize(raw){
+  const src = isObj(raw) ? raw : {};
   const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{},
-    jobs:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, s && typeof s === "object" ? s : {});
+    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{}, remind: ST ? ST.DEFAULT_REMIND : "19:00",
+    settingsUpdatedAt:0, updatedAt:0, jobs:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, src);
+  ["done", "doneOn", "miss", "srs"].forEach(k => { if (!isObj(st[k])) st[k] = {}; });
+  if (!Array.isArray(st.times)) st.times = [];
+  if (!Array.isArray(st.skip)) st.skip = [];
   st.subject = L.validSubject(st.subject);
-  if (window.Plan) st.plan = Plan.migratePlan(st.plan);
+  // The reminder time used to live on the plan; it's a setting now.
+  if (!("remind" in src) && isObj(src.plan) && typeof src.plan.remind === "string") st.remind = src.plan.remind;
+  if (ST) st.remind = ST.validTime(st.remind);
+  if (window.Plan) {
+    st.plan = Plan.migratePlan(st.plan);
+    if (Plan.isActive(st.plan) && !Number.isFinite(st.plan.startRemaining)) {
+      const order = Plan.planOrder(UNITS, Plan.effectiveSkip(st.skip, st.plan.knownUnits, UNITS.length));
+      st.plan = { ...st.plan, startRemaining: Plan.estimateStartRemaining(order, st.done, st.doneOn, st.plan.start) };
+    }
+    if (st.plan && "remind" in st.plan) { const { remind, ...rest } = st.plan; st.plan = rest; }
+  }
   if (window.SRS) { // only lessons that still exist get a schedule
-    const known = Object.fromEntries(Object.keys(st.done || {}).filter(id => st.done[id] && BY_ID[id]).map(id => [id, true]));
+    const known = Object.fromEntries(Object.keys(st.done).filter(id => st.done[id] && BY_ID[id]).map(id => [id, true]));
     st.srs = SRS.migrate(st.srs, known, today(), Date.now());
   }
   if (window.Jobs) { st.jobs = Jobs.sanitize(st.jobs); st.jobTarget = Jobs.clampTarget(st.jobTarget); }
   return st;
 }
-const S = load(); // same object for the whole session; reset() refills it in place
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
-function reset(){
-  const goal = S.goal;
-  try { localStorage.removeItem(KEY); } catch(e) {}
-  Object.keys(S).forEach(k => delete S[k]);
-  Object.assign(S, load(), { goal }); save();
+function load(){
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
+  return normalize(s);
 }
+const S = load(); // same object for the whole session; replaceState() refills it in place
+function save(){ S.updatedAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+/* Something worth syncing changed (a finished lesson or review, a job, the plan or a setting):
+   save now and let sync push it a moment later. */
+function commit(){ save(); if (B.sync && B.sync.soon) B.sync.soon(); }
+function replaceState(next){
+  Object.keys(S).forEach(k => delete S[k]);
+  Object.assign(S, normalize(next));
+}
+/* Clears study progress on this device. Job applications and settings stay. */
+function reset(){ replaceState(ST.resetProgress(S, Date.now())); commit(); }
+/* Change settings (goal, jobTarget, subject, remind, skip) and stamp them for sync. */
+function setSettings(patch){ replaceState(ST.withSettings(S, patch, Date.now())); commit(); }
 function rollDay(){ if (S.day !== today()) { S.day = today(); S.dayLessons = 0; S.dayXp = 0; } }
 function award(xp, isLesson){
   rollDay();
@@ -43,7 +68,7 @@ function award(xp, isLesson){
   if (isLesson) S.dayLessons++;
   const t = today();
   if (S.last !== t) { S.streak = (S.last === t - 1) ? S.streak + 1 : 1; S.last = t; }
-  save();
+  commit();
 }
 function liveStreak(){ return (S.last >= today() - 1) ? S.streak : 0; }
 const MAX_LESSON_SECS = 900, MIN_LESSON_SECS = 15, KEEP_TIMES = 20;
@@ -120,8 +145,9 @@ function nextUnitIn(ui){
 const reviewable = id => !!BY_ID[id] && BY_ID[id].qs.length > 0;
 function dueReviews(){ return window.SRS ? SRS.dueIds(S.srs, today(), reviewable) : []; }
 function isDue(id){ return !!(S.srs[id] && S.srs[id].due <= today()); }
-/* Daily review: questions from due lessons, missed ones first. Each reviewed lesson moves up the
-   ladder if every one of its questions was right first try, otherwise it's due again tomorrow. */
+/* Daily review: questions from due lessons, missed ones first. A reviewed lesson moves up the ladder
+   when at least two of its questions (or all, if it has fewer) were asked and all were right first try;
+   any miss makes it due again tomorrow; with fewer asked it stays as it was. */
 function startReview(){
   const r = window.SRS ? SRS.pickReview({ srs: S.srs, today: today(), miss: S.miss, valid: reviewable,
     qsOf: id => shuffle(BY_ID[id].qs.map(q => q.id)) }) : { qids: [] };
@@ -129,14 +155,18 @@ function startReview(){
   runSession(r.qids.map(id => ({ k:"q", q: QS[id] })), {
     kicker: "Daily review",
     onFinish: (st) => {
-      S.srs = SRS.grade(S.srs, st.first, today(), Date.now());
-      const up = r.lessons.filter(id => S.srs[id].step > 0).length; // a reset puts a lesson back on step 0
-      const back = r.lessons.length - up;
+      const g = SRS.gradeDetail(S.srs, st.first, today(), Date.now(), id => BY_ID[id] ? BY_ID[id].qs.length : 0);
+      S.srs = g.srs;
       const xp = 5 + (st.perfect ? 5 : 0); award(xp, false);
-      return { title: "Review complete", xp, acc: st.acc,
-        note: `${up} lesson${up === 1 ? "" : "s"} moved further out${back ? `, ${back} due again tomorrow` : ""}.` };
+      return { title: "Review complete", xp, acc: st.acc, note: reviewNote(g) };
     }
   });
+}
+function reviewNote(g){
+  const parts = [`${plural(g.up.length, "lesson")} moved further out`];
+  if (g.back.length) parts.push(`${g.back.length} due again tomorrow`);
+  if (g.kept.length) parts.push(`${g.kept.length} unchanged (too few of ${g.kept.length === 1 ? "its" : "their"} questions came up, so ${g.kept.length === 1 ? "it stays" : "they stay"} due)`);
+  return parts.join(", ") + ".";
 }
 function startPractice(label){
   const kicker = typeof label === "string" ? label : "Practice";
@@ -239,16 +269,18 @@ function runSession(items, opts){
 /* ---------- plan and header helpers, shared by the tabs ---------- */
 function plural(n, word){ return `${n} ${word}${n === 1 ? "" : "s"}`; }
 /* Units left out of the plan: the ones the user unticked, plus units added since the plan was made. */
+function activePlan(){ return window.Plan && Plan.isActive(S.plan) ? S.plan : null; }
 function planSkip(){
-  return S.plan && window.Plan ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
+  return activePlan() ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
 }
 /* Today's schedule for the active plan, or null. Also remembers today's target for the calendar. */
 function sched(){
-  if (!S.plan || !window.Plan) return null; // Plan is missing for one load if an old cached index.html is served
+  if (!activePlan()) return null; // Plan is missing for one load if an old cached index.html is served
   const t = today();
   const s = Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
     today: t, start: S.plan.start, days: S.plan.days });
   const targets = Plan.recordTarget(S.plan.targets, t, s.todayTarget);
+  // A recorded target is derived data, so it doesn't bump plan.updatedAt; sync merges targets per day.
   if (targets !== S.plan.targets) { S.plan = { ...S.plan, targets }; save(); }
   return s;
 }
@@ -279,7 +311,7 @@ function ringSVG(pct, label){
     <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
 }
 
-Object.assign(B, { plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
+Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

@@ -1,5 +1,7 @@
 /* Job application tracker: validation, stats, streak and filters. Each application is
-   { id, company, role, link, day, status, updatedAt } in S.jobs. Pure functions, tested in node. */
+   { id, company, role, link, day, status, updatedAt } in S.jobs. A deleted application leaves a tombstone
+   { id, deleted: true, updatedAt } so the deletion syncs to other devices; every reader skips tombstones.
+   Pure functions, tested in node. */
 (function (root) {
 const DAY_MS = 864e5;
 const STATUSES = [["applied", "Applied"], ["oa", "OA"], ["phone", "Phone screen"], ["onsite", "Onsite"],
@@ -16,12 +18,14 @@ const validStatus = s => STATUS_IDS.includes(s);
 function statusName(id) { const s = STATUSES.find(x => x[0] === id); return s ? s[1] : STATUSES[0][1]; }
 function clampTarget(n) { const v = Math.round(Number(n)); return Number.isFinite(v) ? Math.min(MAX_TARGET, Math.max(MIN_TARGET, v)) : DEFAULT_TARGET; }
 
-/* Only http(s) links survive. A bare "example.com/job" gets https:// in front. */
+/* Only http(s) links survive. A bare "example.com/job" or "example.com:8080/job" gets https:// in front.
+   Anything else with a scheme (javascript:, data:, ftp://) is parsed as written and so rejected. */
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:(?:\/\/|(?!\d))/i; // "host:8080" is a port, not a scheme
 function safeLink(v) {
   const s = text(v, MAX_LINK);
   if (!s) return "";
   try {
-    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+    const u = new URL(HAS_SCHEME.test(s) ? s : `https://${s}`);
     return (u.protocol === "http:" || u.protocol === "https:") && u.hostname.includes(".") ? u.href : "";
   } catch (e) { return ""; }
 }
@@ -39,7 +43,7 @@ function create(fields, { id, day, now }) {
 /* Apply an edit to one application. Unknown or invalid fields are ignored. Returns a new list. */
 function update(jobs, id, patch, now) {
   return jobs.map(j => {
-    if (j.id !== id) return j;
+    if (j.id !== id || j.deleted) return j;
     const p = patch || {}, out = { ...j, updatedAt: now };
     if ("company" in p) out.company = text(p.company, MAX_TEXT);
     if ("role" in p) out.role = text(p.role, MAX_TEXT);
@@ -49,22 +53,26 @@ function update(jobs, id, patch, now) {
     return out;
   });
 }
-function remove(jobs, id) { return jobs.filter(j => j.id !== id); }
+/* Deleting leaves a tombstone in place. Returns a new list. */
+function remove(jobs, id, now) { return jobs.map(j => j.id === id ? { id, deleted: true, updatedAt: now } : j); }
+/* Applications that weren't deleted. */
+function live(jobs) { return (jobs || []).filter(j => !j.deleted); }
 
 /* Saved data from older versions or another device: keep valid entries, repair what's fixable. */
 function sanitize(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
-  return list.filter(j => j && typeof j === "object" && typeof j.id === "string" && j.id && validDay(j.day) && !seen.has(j.id) && seen.add(j.id))
-    .map(j => ({ id: j.id, company: text(j.company, MAX_TEXT), role: text(j.role, MAX_TEXT), link: safeLink(j.link), day: j.day,
-      status: validStatus(j.status) ? j.status : "applied", updatedAt: Number.isFinite(j.updatedAt) ? j.updatedAt : 0 }));
+  const at = j => Number.isFinite(j.updatedAt) ? j.updatedAt : 0;
+  return list.filter(j => j && typeof j === "object" && typeof j.id === "string" && j.id && (j.deleted === true || validDay(j.day)) && !seen.has(j.id) && seen.add(j.id))
+    .map(j => j.deleted === true ? { id: j.id, deleted: true, updatedAt: at(j) } : ({ id: j.id, company: text(j.company, MAX_TEXT), role: text(j.role, MAX_TEXT), link: safeLink(j.link), day: j.day,
+      status: validStatus(j.status) ? j.status : "applied", updatedAt: at(j) }));
 }
 
-function countOn(jobs, day) { return jobs.filter(j => j.day === day).length; }
+function countOn(jobs, day) { return live(jobs).filter(j => j.day === day).length; }
 
 /* Days in a row with at least one application, ending today (or yesterday, so it survives until you apply today). */
 function streak(jobs, today) {
-  const days = new Set(jobs.map(j => j.day));
+  const days = new Set(live(jobs).map(j => j.day));
   let d = days.has(today) ? today : today - 1, n = 0;
   while (days.has(d)) { n++; d--; }
   return n;
@@ -73,7 +81,8 @@ function streak(jobs, today) {
 /* Monday of the week a day falls in. */
 function weekStart(day) { const dow = new Date(day * DAY_MS).getUTCDay(); return day - ((dow + 6) % 7); }
 
-function stats(jobs, today) {
+function stats(all, today) {
+  const jobs = live(all);
   const total = jobs.length;
   const responses = jobs.filter(j => !NO_RESPONSE.includes(j.status)).length;
   const wk = weekStart(today);
@@ -84,7 +93,7 @@ function stats(jobs, today) {
 
 function counts(jobs) {
   const out = Object.fromEntries(STATUS_IDS.map(s => [s, 0]));
-  jobs.forEach(j => { out[j.status] = (out[j.status] || 0) + 1; });
+  live(jobs).forEach(j => { out[j.status] = (out[j.status] || 0) + 1; });
   return out;
 }
 
@@ -93,6 +102,7 @@ function counts(jobs) {
 function filter(jobs, { status = "all", q = "" } = {}) {
   const needle = q.trim().toLowerCase();
   return jobs.map((j, i) => [j, i])
+    .filter(([j]) => !j.deleted)
     .filter(([j]) => status === "all" || j.status === status)
     .filter(([j]) => !needle || j.company.toLowerCase().includes(needle) || j.role.toLowerCase().includes(needle))
     .sort(([a, ia], [b, ib]) => b.day - a.day || ib - ia)
@@ -108,6 +118,6 @@ function dayFromISO(s) {
 function isoFromDay(day) { return new Date(day * DAY_MS).toISOString().slice(0, 10); }
 
 const Jobs = { STATUSES, STATUS_IDS, DEFAULT_TARGET, MIN_TARGET, MAX_TARGET, statusName, clampTarget, safeLink, newId,
-  create, update, remove, sanitize, countOn, streak, weekStart, stats, counts, filter, dayFromISO, isoFromDay };
+  create, update, remove, live, sanitize, countOn, streak, weekStart, stats, counts, filter, dayFromISO, isoFromDay };
 if (typeof module !== "undefined" && module.exports) module.exports = Jobs; else root.Jobs = Jobs;
 })(typeof window !== "undefined" ? window : globalThis);

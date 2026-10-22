@@ -176,11 +176,47 @@ test("unticking an old unit keeps new units skipped", () => {
   assert.deepEqual(back.skip, [4, 5]);
 });
 
-test("old plans without knownUnits migrate to the 18 units that existed before", () => {
-  assert.deepEqual(Plan.migratePlan({ start: 5, days: 30 }), { start: 5, days: 30, knownUnits: 18 });
-  const p = { start: 5, days: 30, knownUnits: 22 };
+test("old plans migrate: knownUnits 18, updatedAt 0, a stable id and empty targets", () => {
+  assert.deepEqual(Plan.migratePlan({ start: 5, days: 30 }), { start: 5, days: 30, knownUnits: 18, updatedAt: 0, id: "p5", targets: {} });
+  const p = { id: "x", start: 5, days: 30, knownUnits: 22, updatedAt: 9, targets: { 5: 2 } };
   assert.equal(Plan.migratePlan(p), p);
   assert.equal(Plan.migratePlan(null), null);
+  assert.equal(Plan.migratePlan({ days: 30 }), null);
+  assert.deepEqual(Plan.migratePlan({ ended: true }), { ended: true, updatedAt: 0 });
+  const e = { ended: true, updatedAt: 7 };
+  assert.equal(Plan.migratePlan(e), e);
+});
+
+test("plans are created with an id, start size and updatedAt; ending leaves a stamped marker", () => {
+  const p = Plan.create({ start: START, days: 30, knownUnits: 50, startRemaining: 120, now: 99 });
+  assert.deepEqual(p, { id: `p${START}-99`, start: START, days: 30, knownUnits: 50, startRemaining: 120, targets: {}, updatedAt: 99 });
+  assert.equal(Plan.isActive(p), true);
+  assert.deepEqual(Plan.ended(100), { ended: true, updatedAt: 100 });
+  assert.equal(Plan.isActive(Plan.ended(100)), false);
+  assert.equal(Plan.isActive(null), false);
+});
+
+test("setUnit bumps updatedAt when given a time", () => {
+  const r = Plan.setUnit({ start: 1, days: 30, knownUnits: 4, updatedAt: 1 }, [], 0, false, 4, 50);
+  assert.equal(r.plan.updatedAt, 50);
+  assert.equal(Plan.setUnit(r.plan, r.skip, 0, true, 4).plan.updatedAt, 50);
+});
+
+test("startRemaining estimate counts lessons left plus lessons done since the start", () => {
+  const order = ids(10);
+  const done = { l0: true, l1: true, l2: true, l3: true }, doneOn = { l0: START - 2, l1: START, l2: START + 3 }; // l3 has no date
+  assert.equal(Plan.estimateStartRemaining(order, done, doneOn, START), 8); // 6 left + l1 + l2
+});
+
+test("past calendar days without a recorded target use the plan's original pace", () => {
+  const base = { targets: { [START + 1]: 2 }, startRemaining: 100, days: 30, total: 157 };
+  assert.equal(Plan.pastTarget({ ...base, day: START + 1 }), 2);  // recorded wins
+  assert.equal(Plan.pastTarget({ ...base, day: START + 2 }), 4);  // ceil(100 / 30), not the 157 total
+  assert.equal(Plan.pastTarget({ ...base, day: START + 2, startRemaining: 0 }), 0); // nothing was left: a rest day
+  assert.equal(Plan.pastTarget({ ...base, day: START + 2, startRemaining: undefined }), 6); // unknown: the total
+  assert.equal(Plan.pastTarget({ ...base, day: START + 1, total: 0 }), null); // no units: not judged
+  const target = Plan.pastTarget({ ...base, day: START + 1, total: 0 });
+  assert.notEqual(Plan.dayStatus({ day: START + 1, today: START + 5, did: 0, target }), "missed");
 });
 
 test("aheadBy: on track, behind after missed days, ahead after extra work", () => {

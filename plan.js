@@ -25,14 +25,37 @@ function effectiveSkip(skip, knownUnits, unitCount) {
 }
 /* Tick (on) or untick a unit in an active plan's unit list. New units that weren't ticked stay skipped
    and the plan now knows every unit. Returns the new { plan, skip } without touching the inputs. */
-function setUnit(plan, skip, ui, on, unitCount) {
+function setUnit(plan, skip, ui, on, unitCount, now) {
   const base = effectiveSkip(skip, plan.knownUnits, unitCount).filter(x => x !== ui);
-  return { plan: { ...plan, knownUnits: unitCount }, skip: on ? base : [...base, ui].sort((a, b) => a - b) };
+  return { plan: { ...plan, knownUnits: unitCount, updatedAt: Number.isFinite(now) ? now : plan.updatedAt },
+    skip: on ? base : [...base, ui].sort((a, b) => a - b) };
 }
-/* Old saved plans predate knownUnits. */
+
+/* A plan is { id, start, days, knownUnits, startRemaining, targets, updatedAt }. Ending one leaves
+   { ended: true, updatedAt } so the ending can win a sync merge against an older copy of the plan. */
+function isActive(plan) { return !!plan && typeof plan === "object" && !plan.ended; }
+function create({ start, days, knownUnits, startRemaining, now, id }) {
+  return { id: id || `p${start}-${now}`, start, days, knownUnits, startRemaining, targets: {}, updatedAt: now };
+}
+function ended(now) { return { ended: true, updatedAt: now }; }
+/* Lessons in the plan that weren't done before it started: the ones left plus the ones done since.
+   Used to estimate startRemaining for plans saved before it was stored. */
+function estimateStartRemaining(order, done, doneOn, start) {
+  return order.filter(id => !done[id] || doneOn[id] >= start).length;
+}
+/* Old saved plans predate knownUnits, updatedAt, id and startRemaining (core.js fills the last one in,
+   since it needs the curriculum). Returns the same object when nothing needed changing. */
 function migratePlan(plan) {
   if (!plan || typeof plan !== "object") return null;
-  return Number.isInteger(plan.knownUnits) ? plan : { ...plan, knownUnits: UNITS_BEFORE_KNOWN };
+  const at = Number.isFinite(plan.updatedAt) ? plan.updatedAt : 0;
+  if (plan.ended) return plan.updatedAt === at && Object.keys(plan).length === 2 ? plan : ended(at);
+  if (!Number.isInteger(plan.start) || !Number.isInteger(plan.days)) return null;
+  const fix = {};
+  if (!Number.isInteger(plan.knownUnits)) fix.knownUnits = UNITS_BEFORE_KNOWN;
+  if (plan.updatedAt !== at) fix.updatedAt = at;
+  if (typeof plan.id !== "string" || !plan.id) fix.id = `p${plan.start}`;
+  if (!plan.targets || typeof plan.targets !== "object" || Array.isArray(plan.targets)) fix.targets = {};
+  return Object.keys(fix).length ? { ...plan, ...fix } : plan;
 }
 
 /* Median of your recent lesson times once there are enough of them, otherwise the default. */
@@ -106,6 +129,17 @@ function recordTarget(targets, day, target) {
   return out;
 }
 
+/* Target for a past plan day in the calendar. A recorded target wins; days the app wasn't opened fall
+   back to the plan's original even pace (lessons left at the start over its length). With nothing in
+   the plan (total 0) past days aren't judged, so they never show as missed. */
+function pastTarget({ targets, day, startRemaining, days, total }) {
+  if (!total) return null;
+  const t = targets && targets[day];
+  if (Number.isFinite(t)) return t;
+  const left = Number.isFinite(startRemaining) ? startRemaining : total;
+  return left > 0 ? Math.max(1, Math.ceil(left / Math.max(1, days))) : 0;
+}
+
 /* Calendar month: the day number of the 1st, how many days, and the weekday of the 1st (0 = Sunday). */
 function monthInfo(year, month) {
   const first = Date.UTC(year, month, 1) / DAY_MS;
@@ -170,6 +204,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);

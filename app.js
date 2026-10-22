@@ -17,7 +17,7 @@ if (!window.Blop || !window.Blop.S) {
 }
 try { sessionStorage.removeItem("blop-stale-reload"); } catch (e) {}
 const B = window.Blop, L = B.logic;
-const { UNITS, ALL, BY_ID, S, I, $, esc, save, liveStreak, toast, unlocked, nextInUnit, startLesson, startPractice, isDue,
+const { UNITS, ALL, BY_ID, S, I, $, esc, save, setSettings, liveStreak, toast, unlocked, nextInUnit, startLesson, startPractice, isDue,
   planSkip, sched, dayGoal, statsRow } = B;
 const app = $("#app");
 
@@ -74,7 +74,7 @@ function renderLearn(){
   $("#practice").onclick = startPractice;
   app.querySelectorAll("[data-subj]").forEach(b => b.onclick = () => {
     if (S.subject === b.dataset.subj) return;
-    S.subject = L.validSubject(b.dataset.subj); S.open = null; save(); render(); window.scrollTo(0,0);
+    S.open = null; setSettings({ subject: L.validSubject(b.dataset.subj) }); render(); window.scrollTo(0,0);
     const f = app.querySelector(`[data-subj="${S.subject}"]`); if (f) f.focus({ preventScroll:true });
   });
   app.querySelectorAll("[data-unit]").forEach(b => b.onclick = () => {
@@ -108,19 +108,29 @@ function renderProfile(){
     <ol class="steps"><li>iPhone: open this site in Safari, tap Share, then Add to Home Screen.</li>
     <li>Android: open it in Chrome, tap the ⋮ menu, then Install app or Add to Home screen.</li></ol>
     <p style="margin:10px 0 0">Your progress is saved on this device.</p></div>
-  <div class="panel"><h3>Reset progress</h3><p>Clears your streak, XP, and finished lessons on this device.</p>
-    <button class="linkish" id="reset">Reset everything</button></div></div>`;
-  app.querySelectorAll("[data-goal]").forEach(b => b.onclick = () => { S.goal = +b.dataset.goal; save(); render(); });
+  <div class="panel"><h3>Reset study progress</h3><p>Clears finished lessons, XP, your study streak, review schedule,
+    missed-question history, lesson times, today’s counts and your study plan on this device.
+    Keeps your job applications, daily goal, job target, subject and reminder time.</p>
+    <button class="linkish" id="reset">Reset study progress</button></div></div>`;
+  app.querySelectorAll("[data-goal]").forEach(b => b.onclick = () => { setSettings({ goal: +b.dataset.goal }); render(); });
   $("#reset").onclick = () => {
-    if (confirm("Reset all progress? This can’t be undone.")) { B.reset(); render(); }
+    if (confirm("Reset your study progress? Job applications and settings stay. This can’t be undone.")) { B.reset(); render(); }
   };
 }
 
+/* A tab whose script didn't load (an old cached index.html, or a failed download) asks for a reload
+   instead of silently showing another tab. */
+function renderStale(){
+  app.innerHTML = `<div class="wrap"><div class="panel" style="margin-top:24px"><h3>Update ready</h3>
+    <p>Part of the new version of blop didn’t load. Reload to finish updating.</p>
+    <button class="cta" id="reload">Reload</button></div></div>`;
+  $("#reload").onclick = () => location.reload();
+}
 function render(){
   renderTabs();
   if (tab === "learn") renderLearn();
-  else if (tab === "today" && B.renderToday) B.renderToday(app, render);
-  else if (tab === "jobs" && B.renderJobs) B.renderJobs(app, render);
+  else if (tab === "today") B.renderToday ? B.renderToday(app, render) : renderStale();
+  else if (tab === "jobs") B.renderJobs ? B.renderJobs(app, render) : renderStale();
   else renderProfile();
 }
 B.render = render;

@@ -3,11 +3,11 @@
 (() => {
 if (!window.Blop || !window.Blop.S) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop, L = B.logic;
-const { UNITS, BY_ID, QS, S, I, $, esc, save, today, toast, unlocked, unitLabel, startLesson, startReview, dueReviews,
+const { UNITS, BY_ID, QS, S, I, $, esc, commit, setSettings, today, toast, unlocked, unitLabel, startLesson, startReview, dueReviews,
   plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG } = B;
 
 const PLAN_LENGTHS = [14, 30, 45, 60];
-const DEFAULT_PLAN_DAYS = 30, DEFAULT_REMIND = "19:00";
+const DEFAULT_PLAN_DAYS = 30;
 let draftDays = DEFAULT_PLAN_DAYS;
 let calMonth = null; // { year, month } shown in the calendar; null means this month
 
@@ -68,7 +68,7 @@ function reviewPanel(){
     <button class="cta ghost" disabled>Start review</button></div>`;
   if (due) return `<div class="panel"><h3>Reviews due today <span class="count">${due}</span></h3>
     <p>${plural(due, "lesson")} to review, up to 15 questions${weak ? ", missed ones first" : ""}.
-    Get all of a lesson’s questions right and it comes back later; miss one and it’s back tomorrow.</p>
+    A lesson comes back later once at least two of its questions (or its only one) came up and you got them all right; miss one and it’s back tomorrow. If fewer came up, it stays due.</p>
     <button class="cta" id="rev">Start review</button></div>`;
   return `<div class="panel"><h3>No reviews due</h3><p>You’re up to date. Extra practice mixes questions from lessons you’ve finished${weak ? `, starting with ${weak} you’ve missed` : ""}.</p>
     <button class="cta ghost" id="rev">Extra practice</button></div>`;
@@ -88,12 +88,11 @@ function lessonsByDay(s){
 function targetFn(s, did){
   const t = today();
   if (!s) return d => d === t ? S.goal : d < t && did[d] ? S.goal : null;
-  const start = S.plan.start, targets = S.plan.targets || {};
-  const fallback = Math.max(1, Math.ceil(s.total / S.plan.days));
+  const { start, days, targets, startRemaining } = S.plan;
   return d => {
     if (d === t) return s.todayTarget;
     if (d < start || d > s.end) return null;
-    if (d < t) return targets[d] !== undefined ? targets[d] : fallback;
+    if (d < t) return Plan.pastTarget({ targets, day: d, startRemaining, days, total: s.total });
     const row = s.plan[d - t];
     return row ? row.ids.length : 0;
   };
@@ -162,7 +161,7 @@ function planSetupHTML(secs){
 function planSettingsHTML(s){
   return `${s.overdue || !s.remaining ? "" : `<div class="panel"><h3>Daily reminder</h3>
       <p>Adds a repeating event with an alert to your phone’s calendar, every day until your plan ends.</p>
-      <div class="remind"><input type="time" id="remindat" value="${esc(S.plan.remind || DEFAULT_REMIND)}" aria-label="Reminder time">
+      <div class="remind"><input type="time" id="remindat" value="${esc(S.remind)}" aria-label="Reminder time">
       <button class="cta ghost" id="addremind">Add to calendar</button></div></div>`}
     <div class="panel"><h3>Change your plan</h3><p>Finish in this many days, counting from today.</p>
       <div class="seg">${PLAN_LENGTHS.map(n => `<button data-relen="${n}">${n}</button>`).join("")}</div>
@@ -175,7 +174,7 @@ function planStateHTML(s, secs){
   return todayPlanHTML(s, secs);
 }
 function downloadReminder(s, secs){
-  const ics = Plan.reminderICS({ fromDay: today(), endDay: s.end, time: S.plan.remind || DEFAULT_REMIND,
+  const ics = Plan.reminderICS({ fromDay: today(), endDay: s.end, time: S.remind,
     minutes: Plan.minutesFor(s.todayTarget, secs), url: location.origin });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
@@ -191,12 +190,14 @@ function bind(app, s, secs, render){
   app.querySelectorAll("[data-days]").forEach(b => b.onclick = () => { draftDays = +b.dataset.days; render(); });
   app.querySelectorAll("[data-skip]").forEach(c => c.onchange = () => {
     const ui = +c.dataset.skip;
-    if (S.plan) Object.assign(S, Plan.setUnit(S.plan, S.skip, ui, c.checked, UNITS.length));
-    else S.skip = c.checked ? S.skip.filter(x => x !== ui) : [...S.skip, ui];
-    save(); render();
+    if (B.activePlan()) {
+      const r = Plan.setUnit(S.plan, S.skip, ui, c.checked, UNITS.length, Date.now());
+      S.plan = r.plan; setSettings({ skip: r.skip });
+    } else setSettings({ skip: c.checked ? S.skip.filter(x => x !== ui) : [...S.skip, ui] });
+    render();
   });
   app.querySelectorAll("[data-relen]").forEach(b => b.onclick = () => {
-    S.plan = { ...S.plan, days: today() - S.plan.start + +b.dataset.relen }; save(); render();
+    S.plan = { ...S.plan, days: today() - S.plan.start + +b.dataset.relen, updatedAt: Date.now() }; commit(); render();
     toast(`Plan now ends ${Plan.dayLabel(today() + +b.dataset.relen - 1)}.`);
   });
   app.querySelectorAll("[data-start]").forEach(b => b.onclick = () => {
@@ -208,13 +209,17 @@ function bind(app, s, secs, render){
     shiftMonth(+b.dataset.cal); render();
     const f = app.querySelector(`[data-cal="${b.dataset.cal}"]`); if (f) f.focus({ preventScroll: true });
   });
-  on("#startplan", () => { S.plan = { start: today(), days: draftDays, remind: DEFAULT_REMIND, knownUnits: UNITS.length }; save(); render(); });
-  on("#endplan", () => { if (confirm("End this plan? Your finished lessons stay finished.")) { S.plan = null; save(); render(); } });
+  on("#startplan", () => {
+    const left = Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length;
+    S.plan = Plan.create({ start: today(), days: draftDays, knownUnits: UNITS.length, startRemaining: left, now: Date.now() });
+    commit(); render();
+  });
+  on("#endplan", () => { if (confirm("End this plan? Your finished lessons stay finished.")) { S.plan = Plan.ended(Date.now()); commit(); render(); } });
   on("#cont", () => { const n = nextUp(); if (n) startLesson(n); });
   on("#rev", startReview);
   on("#addremind", () => downloadReminder(s, secs));
   const t = $("#remindat");
-  if (t) t.onchange = () => { if (t.value) { S.plan = { ...S.plan, remind: t.value }; save(); } };
+  if (t) t.onchange = () => { if (t.value) setSettings({ remind: t.value }); };
 }
 
 function renderToday(app, render){

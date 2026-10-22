@@ -45,19 +45,33 @@ function pickReview({ srs, today, qsOf, miss, cap = REVIEW_CAP, order = a => a, 
   return { qids, lessons };
 }
 
-/* firstTry: { qid: true if answered right on the first try }. Each reviewed lesson moves one step up
-   the ladder if all of its questions were right first try, otherwise back to 1 day. Returns a new map. */
-function grade(srs, firstTry, today, now) {
+/* Questions a review must ask from a lesson before it can move up: two, or all of them if it has fewer. */
+const MIN_ASKED = 2;
+const needed = count => Math.max(1, Math.min(MIN_ASKED, Number.isFinite(count) ? count : MIN_ASKED));
+
+/* firstTry: { qid: true if answered right on the first try }. qCount(id) gives a lesson's question count.
+   Any wrong answer sends a lesson back to 1 day. A lesson moves one step up the ladder only when at least
+   min(2, its question count) of its questions were asked and all were right first try; with fewer asked
+   it keeps its step and due date. Returns { srs, up, back, kept } (lesson ids); the map is new. */
+function gradeDetail(srs, firstTry, today, now, qCount) {
   const byLesson = {};
   Object.keys(firstTry).forEach(q => {
     const id = lessonOf(q);
-    if (id && srs[id]) byLesson[id] = (byLesson[id] !== false) && !!firstTry[q];
+    if (!id || !srs[id]) return;
+    const r = byLesson[id] || (byLesson[id] = { asked: 0, right: true });
+    r.asked++; r.right = r.right && !!firstTry[q];
   });
-  const out = { ...srs };
-  Object.keys(byLesson).forEach(id => { out[id] = entry(byLesson[id] ? srs[id].step + 1 : 0, today, now); });
-  return out;
+  const out = { ...srs }, up = [], back = [], kept = [];
+  Object.keys(byLesson).forEach(id => {
+    const r = byLesson[id];
+    if (!r.right) { out[id] = entry(0, today, now); back.push(id); }
+    else if (r.asked >= needed(qCount ? qCount(id) : undefined)) { out[id] = entry(srs[id].step + 1, today, now); up.push(id); }
+    else kept.push(id);
+  });
+  return { srs: out, up, back, kept };
 }
+function grade(srs, firstTry, today, now, qCount) { return gradeDetail(srs, firstTry, today, now, qCount).srs; }
 
-const SRS = { LADDER, REVIEW_CAP, lessonOf, enter, migrate, dueIds, pickReview, grade };
+const SRS = { LADDER, REVIEW_CAP, MIN_ASKED, lessonOf, enter, migrate, dueIds, pickReview, grade, gradeDetail };
 if (typeof module !== "undefined" && module.exports) module.exports = SRS; else root.SRS = SRS;
 })(typeof window !== "undefined" ? window : globalThis);

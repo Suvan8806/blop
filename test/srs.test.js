@@ -41,7 +41,7 @@ test("all right first try moves one step up the ladder 1 -> 3 -> 7 -> 21 -> 60",
 
 test("any wrong answer resets that lesson to 1 day and leaves other lessons alone", () => {
   const srs = { u0l0: { step: 3, due: T, updatedAt: 0 }, u0l1: { step: 2, due: T, updatedAt: 0 }, u5l0: { step: 1, due: T + 2, updatedAt: 0 } };
-  const out = SRS.grade(srs, { u0l0q0: true, u0l0q1: false, u0l1q0: true }, T, NOW);
+  const out = SRS.grade(srs, { u0l0q0: true, u0l0q1: false, u0l1q0: true, u0l1q1: true }, T, NOW);
   assert.deepEqual(out.u0l0, { step: 0, due: T + 1, updatedAt: NOW });
   assert.deepEqual(out.u0l1, { step: 3, due: T + 21, updatedAt: NOW });
   assert.equal(out.u5l0, srs.u5l0);
@@ -83,4 +83,30 @@ test("nothing due gives an empty review", () => {
 test("lessonOf reads the lesson id from a question id", () => {
   assert.equal(SRS.lessonOf("u12l3q10"), "u12l3");
   assert.equal(SRS.lessonOf("bad"), null);
+});
+
+test("a lesson moves up only when at least min(2, its question count) were asked, all right", () => {
+  const srs = { u0l0: { step: 1, due: T, updatedAt: 0 }, u0l1: { step: 1, due: T, updatedAt: 0 }, u0l2: { step: 2, due: T - 1, updatedAt: 0 } };
+  const count = { u0l0: 5, u0l1: 1, u0l2: 2 };
+  const r = SRS.gradeDetail(srs, { u0l0q3: true, u0l1q0: true, u0l2q0: true, u0l2q1: true }, T, NOW, id => count[id]);
+  assert.deepEqual(r.kept, ["u0l0"]);                 // 1 of 5 asked: not enough evidence
+  assert.equal(r.srs.u0l0, srs.u0l0);                 // step, due date and updatedAt unchanged
+  assert.deepEqual(r.up.sort(), ["u0l1", "u0l2"]);    // a one-question lesson needs just that one
+  assert.deepEqual(r.srs.u0l1, { step: 2, due: T + 7, updatedAt: NOW });
+  assert.deepEqual(r.srs.u0l2, { step: 3, due: T + 21, updatedAt: NOW });
+  assert.deepEqual(r.back, []);
+});
+
+test("a single wrong answer still resets, however few questions were asked", () => {
+  const srs = { u0l0: { step: 3, due: T, updatedAt: 0 } };
+  const r = SRS.gradeDetail(srs, { u0l0q2: false }, T, NOW, () => 8);
+  assert.deepEqual(r.back, ["u0l0"]);
+  assert.deepEqual(r.srs.u0l0, { step: 0, due: T + 1, updatedAt: NOW });
+});
+
+test("without a question count a lesson needs two questions asked", () => {
+  const srs = { u0l0: { step: 0, due: T, updatedAt: 0 } };
+  assert.equal(SRS.grade(srs, { u0l0q0: true }, T, NOW).u0l0, srs.u0l0);
+  assert.equal(SRS.grade(srs, { u0l0q0: true, u0l0q1: true }, T, NOW).u0l0.step, 1);
+  assert.equal(SRS.grade(srs, { u0l0q0: true }, T, NOW, () => 0).u0l0.step, 1); // a count of 0 still needs one
 });
