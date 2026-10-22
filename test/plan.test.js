@@ -51,6 +51,18 @@ test("skipping days raises the daily target", () => {
   assert.ok(s.history.every(h => h.did === 0));
 });
 
+test("history only shows the last week after a long break", () => {
+  const s = Plan.schedule({ order: ids(10), done: {}, doneOn: {}, today: START + 90, start: START, days: 30 });
+  assert.equal(s.history.length, 7);
+  assert.equal(s.history[0].day, START + 83);
+});
+
+test("reminder never ends before it starts", () => {
+  const ics = Plan.reminderICS({ fromDay: 40, endDay: 29, time: "08:00", minutes: 10, url: "https://example.test" });
+  assert.match(ics, /DTSTART:19700210T080000/);
+  assert.match(ics, /UNTIL=19700210T235959/);
+});
+
 test("past days record what you actually did", () => {
   const order = ids(157);
   const a = markDone(order.slice(0, 4), START), b = markDone(order.slice(4, 12), START + 1);

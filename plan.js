@@ -4,6 +4,7 @@
 const DAY_MS = 864e5;
 const DEFAULT_LESSON_SECS = 120;
 const MIN_SAMPLES = 3;
+const HISTORY_DAYS = 7;
 
 /* Lesson ids in the plan, in curriculum order, leaving out skipped units. */
 function planOrder(units, skip) {
@@ -46,7 +47,7 @@ function schedule({ order, done, doneOn, today, start, days }) {
   });
 
   const history = [];
-  for (let d = start; d < today; d++) {
+  for (let d = Math.max(start, today - HISTORY_DAYS); d < today; d++) {
     history.push({ day: d, did: order.filter(id => done[id] && doneOn[id] === d).length });
   }
 
@@ -77,8 +78,9 @@ function ymd(day) {
 }
 
 /* A calendar file with one repeating daily event and an alert, from fromDay through endDay. */
-function reminderICS({ fromDay, endDay, time, minutes, url }) {
+function reminderICS({ fromDay, endDay: lastDay, time, minutes, url }) {
   const [hh, mm] = time.split(":");
+  const endDay = Math.max(fromDay, lastDay);
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
   return [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//blop//study plan//EN", "CALSCALE:GREGORIAN",

@@ -39,7 +39,7 @@ function liveStreak(){ return (S.last >= today() - 1) ? S.streak : 0; }
 /* ---------- plan ---------- */
 const MAX_LESSON_SECS = 900, MIN_LESSON_SECS = 15, KEEP_TIMES = 20;
 function sched(){
-  if (!S.plan) return null;
+  if (!S.plan || !window.Plan) return null; // Plan is missing for one load if an old cached index.html is served
   return Plan.schedule({ order: Plan.planOrder(UNITS, S.skip), done: S.done, doneOn: S.doneOn,
     today: today(), start: S.plan.start, days: S.plan.days });
 }
@@ -265,10 +265,10 @@ function planActiveHTML(s, secs){
       ${nxt ? `<p style="margin:14px 0 12px">Next: Unit ${nxt.ui+1} · ${esc(nxt.title)}</p><button class="cta" id="plannext">Start lesson</button>` : ""}</div>
     <div class="panel"><h3>Pace</h3><p style="margin:0">${paceHTML(s)}</p></div>
     <div class="panel"><h3>Day by day</h3><p>Future days update every time you finish a lesson.</p>${dayRowsHTML(s, secs)}</div>
-    <div class="panel"><h3>Daily reminder</h3>
+    ${s.overdue ? "" : `<div class="panel"><h3>Daily reminder</h3>
       <p>Adds a repeating event with an alert to your phone’s calendar, every day until your plan ends.</p>
       <div class="remind"><input type="time" id="remindat" value="${esc(S.plan.remind || DEFAULT_REMIND)}" aria-label="Reminder time">
-      <button class="cta ghost" id="addremind">Add to calendar</button></div></div>
+      <button class="cta ghost" id="addremind">Add to calendar</button></div></div>`}
     <div class="panel"><h3>Change your plan</h3><p>Finish in this many days, counting from today.</p>
       <div class="seg">${PLAN_LENGTHS.map(n => `<button data-relen="${n}">${n}</button>`).join("")}</div>
       <button class="linkish" id="endplan" style="margin-top:8px">End plan</button></div>
@@ -287,6 +287,12 @@ function downloadReminder(s, secs){
 }
 
 function renderPlan(){
+  if (!window.Plan) {
+    app.innerHTML = `<div class="wrap"><div class="panel"><h3>Update ready</h3><p>Reload the app to open your study plan.</p>
+      <button class="cta" id="reload">Reload</button></div></div>`;
+    $("#reload").onclick = () => location.reload();
+    return;
+  }
   const secs = Plan.lessonSecs(S.times);
   const s = sched();
   app.innerHTML = `<div class="top"><div class="wrap"><h1>Study plan</h1>${statsRow()}</div></div>
