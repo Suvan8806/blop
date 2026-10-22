@@ -8,6 +8,25 @@ const MATCH_PAIRS = 4;            // keyboard letters A-D and digits 1-4 cover a
 const ORDER_MIN = 2, ORDER_MAX = 6;
 // Units that already shipped in content.js but belong to another subject. Tagged here so content.js stays untouched.
 const UNIT_SUBJECT = { 16: "sd", 17: "sd" };
+/* Display order only: a unit listed here is shown right after the base unit with that title (same subject),
+   after any earlier units placed there. Unit indices and ids never change. Unlisted units keep index order. */
+const UNIT_AFTER = {
+  "Deep Dive: Probability & Stats": "Math Primer",
+  "Deep Dive: Backprop": "Foundations",
+  "Deep Dive: Optimizers": "Foundations",
+  "Deep Dive: Regularization": "Foundations",
+  "Deep Dive: Evaluation Metrics": "Foundations",
+  "Deep Dive: CNN Internals": "Architectures",
+  "Deep Dive: Attention & Transformers": "Transformers & LLMs",
+  "Deep Dive: Embeddings & Contrastive": "Transformers & LLMs",
+  "Deep Dive: LLM Systems & Efficiency": "Transformers & LLMs",
+  "Deep Dive: Leakage & Skew": "MLOps",
+  "Deep Dive: RAG Evaluation": "Retrieval-Augmented Generation",
+  "Deep Dive: Agents in Practice": "AI Agents",
+  "Deep Dive: RL Foundations": "Reinforcement Learning",
+  "Deep Dive: Post-training LLMs": "Fine-tuning in Practice",
+  "Deep Dive: Information Theory": "Math Primer"
+};
 
 const str = v => (typeof v === "string" ? v : "");
 const strs = a => Array.isArray(a) && a.length && a.every(x => typeof x === "string");
@@ -58,19 +77,37 @@ function subjectOf(rawUnit, ui) {
   return SUBJECT_IDS.includes(tr) ? tr : "ml";
 }
 
-/* CURRICULUM -> units with a hue (by global index, so colours never change), a subject,
-   and a 1-based number within that subject. */
-function buildUnits(curriculum) {
-  const count = {};
-  return curriculum.map((u, ui) => {
-    const tr = subjectOf(u, ui);
-    count[tr] = (count[tr] || 0) + 1;
-    return { ui, title: str(u.t), hue: HUES[ui % HUES.length], tr, num: count[tr],
-      lessons: u.ls.map((l, li) => normLesson(l, ui, li)) };
-  });
+/* Units (each with ui, title, tr) in display order: a unit named in `after` follows its base unit.
+   A unit whose base is missing, in another subject, or itself placed after something stays in index order. */
+function displayOrder(units, after = UNIT_AFTER) {
+  const byTitle = new Map();
+  units.forEach(u => { if (!byTitle.has(u.title)) byTitle.set(u.title, u); });
+  const baseOf = u => {
+    const b = byTitle.get(after[u.title]);
+    return b && b !== u && b.tr === u.tr && !after[b.title] ? b : null;
+  };
+  const kids = new Map();
+  units.forEach(u => { const b = baseOf(u); if (b) kids.set(b, [...(kids.get(b) || []), u]); });
+  return units.filter(u => !baseOf(u)).flatMap(u => [u, ...(kids.get(u) || [])]);
 }
 
-function unitsFor(units, subject) { return units.filter(u => u.tr === subject); }
+/* CURRICULUM -> units, indexed by ui, with a hue (by global index, so colours never change), a subject,
+   a display position `pos` (see displayOrder) and a 1-based number within the subject in display order. */
+function buildUnits(curriculum) {
+  const units = curriculum.map((u, ui) => ({ ui, title: str(u.t), hue: HUES[ui % HUES.length], tr: subjectOf(u, ui),
+    lessons: u.ls.map((l, li) => normLesson(l, ui, li)) }));
+  const count = {};
+  const placed = displayOrder(units).map((u, pos) => {
+    count[u.tr] = (count[u.tr] || 0) + 1;
+    return { ...u, pos, num: count[u.tr] };
+  });
+  return placed.sort((a, b) => a.ui - b.ui);
+}
+
+/* A subject's units in display order. */
+function unitsFor(units, subject) {
+  return units.filter(u => u.tr === subject).sort((a, b) => (a.pos ?? a.ui) - (b.pos ?? b.ui));
+}
 function subjectName(id) { const s = SUBJECTS.find(x => x[0] === id); return s ? s[1] : SUBJECTS[0][1]; }
 function validSubject(id) { return SUBJECT_IDS.includes(id) ? id : "ml"; }
 
@@ -95,7 +132,7 @@ function answerText(q) {
   return q.ok;
 }
 
-const Logic = { MATCH_PAIRS, ORDER_MIN, ORDER_MAX, HUES, SUBJECTS, UNIT_SUBJECT, normQ, normLesson, subjectOf, buildUnits, unitsFor, subjectName,
+const Logic = { MATCH_PAIRS, ORDER_MIN, ORDER_MAX, HUES, SUBJECTS, UNIT_SUBJECT, UNIT_AFTER, normQ, normLesson, subjectOf, displayOrder, buildUnits, unitsFor, subjectName,
   validSubject, checkChoice, checkOrder, orderMarks, checkPair, answerText };
 if (typeof module !== "undefined" && module.exports) module.exports = Logic;
 else (root.Blop = root.Blop || {}).logic = Logic;

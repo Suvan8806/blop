@@ -12,9 +12,13 @@ function loadCurriculum(files) {
   global.window = prev;
   return c;
 }
+/* Same order as the <script> tags in index.html. */
+const CONTENT_FILES = ["../content.js", "../content-code.js", "../content-sd.js", "../content-ml-deep.js", "../content-extra.js"];
 const ML_ONLY = loadCurriculum(["../content.js"]);
-const FULL = loadCurriculum(["../content.js", "../content-code.js", "../content-extra.js"]);
+const FULL = loadCurriculum(CONTENT_FILES);
 const UNITS = L.buildUnits(FULL);
+const SNAPSHOT = require("./fixtures/content-ids-0bc9f56.json");
+const quiet = fn => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
 
 test("old array questions normalise to multiple choice with the first option correct", () => {
   const q = L.normQ(["Pick one", ["right", "wrong"], "because"], "u0l0q0");
@@ -80,21 +84,120 @@ test("extra SD questions are appended with new ids, one of each type per SD unit
   assert.equal(UNITS[16].lessons[0].qs[3].type, "order");
 });
 
-test("subjects: units 16 and 17 are System Design, coding units come from tr, the rest are ML", () => {
+test("subjects: units 16 and 17 are System Design, then coding, SD and ML deep-dive units come from tr", () => {
   assert.equal(UNITS[16].tr, "sd"); assert.equal(UNITS[17].tr, "sd");
   assert.ok(UNITS.slice(0, 16).every(u => u.tr === "ml"));
-  assert.ok(UNITS.slice(18).every(u => u.tr === "code"));
+  assert.ok(UNITS.slice(18, 22).every(u => u.tr === "code"));
+  assert.ok(UNITS.slice(22, 38).every(u => u.tr === "sd"));
+  assert.ok(UNITS.slice(38).every(u => u.tr === "ml" && u.title.startsWith("Deep Dive:")));
   assert.equal(L.subjectOf({ tr: "nonsense" }, 2), "ml");
 });
 
-test("unitsFor filters by subject and numbers units within the subject", () => {
+test("unitsFor filters by subject and numbers units within the subject in display order", () => {
   const sd = L.unitsFor(UNITS, "sd"), code = L.unitsFor(UNITS, "code"), ml = L.unitsFor(UNITS, "ml");
-  assert.deepEqual(sd.map(u => [u.ui, u.num]), [[16, 1], [17, 2]]);
+  assert.deepEqual(sd.map(u => u.ui), [16, 17, ...Array.from({ length: 16 }, (_, i) => 22 + i)]);
+  assert.deepEqual(sd.map(u => u.num), Array.from({ length: 18 }, (_, i) => i + 1));
   assert.deepEqual(code.map(u => u.num), [1, 2, 3, 4]);
   assert.equal(code[0].ui, 18);
-  assert.equal(ml.length, 16);
-  assert.equal(ml[15].num, 16);
+  assert.deepEqual(ml.map(u => u.num), Array.from({ length: 31 }, (_, i) => i + 1));
   assert.equal(sd.length + code.length + ml.length, UNITS.length);
+});
+
+test("every content file loads and appends its units", () => {
+  const expect = [["../content.js", 18], ["../content-code.js", 4], ["../content-sd.js", 16], ["../content-ml-deep.js", 15]];
+  let n = 0;
+  expect.forEach(([f, add], i) => {
+    const c = loadCurriculum(CONTENT_FILES.slice(0, i + 1));
+    assert.ok(Array.isArray(c), f);
+    assert.equal(c.length - n, add, f);
+    n = c.length;
+  });
+  assert.equal(FULL.length, 53);
+});
+
+test("unit and lesson totals per subject", () => {
+  const totals = Object.fromEntries(L.SUBJECTS.map(([id]) => {
+    const us = L.unitsFor(UNITS, id);
+    return [id, [us.length, us.reduce((a, u) => a + u.lessons.length, 0)]];
+  }));
+  assert.deepEqual(totals, { ml: [16 + 15, 135 + 106], code: [4, 19], sd: [2 + 16, 22 + 116] });
+  assert.equal(FULL.slice(22, 38).reduce((a, u) => a + u.ls.length, 0), 116);
+  assert.equal(FULL.slice(38).reduce((a, u) => a + u.ls.length, 0), 106);
+});
+
+test("content.js lesson and question ids from commit 0bc9f56 are all still there", () => {
+  assert.equal(SNAPSHOT.units.length, 18);
+  SNAPSHOT.units.forEach(su => {
+    const u = UNITS[su.ui];
+    assert.equal(u.title, su.title, `unit ${su.ui}`);
+    assert.ok(u.lessons.length >= su.lessons.length, `unit ${su.ui} lost lessons`);
+    su.lessons.forEach((sl, li) => {
+      const l = u.lessons[li];
+      assert.equal(l.id, sl.id);
+      assert.equal(l.title, sl.title, sl.id);
+      const ids = new Set(l.qs.map(q => q.id));
+      for (let qi = 0; qi < sl.questions; qi++) assert.ok(ids.has(`${sl.id}q${qi}`), `${sl.id}q${qi}`);
+    });
+  });
+});
+
+test("no lesson ends up with zero valid questions", () => {
+  UNITS.forEach(u => u.lessons.forEach(l => assert.ok(l.qs.length > 0, `${l.id} ${u.title} / ${l.title}`)));
+});
+
+test("every typed question passes normQ", () => {
+  let typed = 0;
+  FULL.forEach((u, ui) => u.ls.forEach((l, li) => l[2].forEach((q, qi) => {
+    if (Array.isArray(q)) return;
+    typed++;
+    assert.ok(quiet(() => L.normQ(q, `u${ui}l${li}q${qi}`)), `u${ui}l${li}q${qi} (${u.t} / ${l[0]})`);
+  })));
+  assert.ok(typed > 40, `only ${typed} typed questions`);
+});
+
+test("display order: each deep-dive unit follows the base unit it deepens", () => {
+  const ml = L.unitsFor(UNITS, "ml").map(u => u.title);
+  const after = (deep, base) => {
+    const i = ml.indexOf(deep), b = ml.indexOf(base);
+    assert.ok(b >= 0 && i > b, `${deep} after ${base}`);
+    assert.ok(ml.slice(b + 1, i).every(t => L.UNIT_AFTER[t] === base), `${deep} directly after ${base}`);
+  };
+  after("Deep Dive: Backprop", "Foundations");
+  after("Deep Dive: Attention & Transformers", "Transformers & LLMs");
+  after("Deep Dive: RL Foundations", "Reinforcement Learning");
+  Object.entries(L.UNIT_AFTER).forEach(([deep, base]) => after(deep, base));
+  assert.deepEqual(ml.slice(0, 7), ["Start Here", "Python Refresher", "Foundations", "Deep Dive: Backprop",
+    "Deep Dive: Optimizers", "Deep Dive: Regularization", "Deep Dive: Evaluation Metrics"]);
+  assert.equal(ml[ml.length - 1], "Practical ML Engineering");
+  assert.equal(ml.filter(t => t.startsWith("Deep Dive:")).length, 15);
+});
+
+test("display order never changes unit indices or ids", () => {
+  UNITS.forEach((u, ui) => {
+    assert.equal(u.ui, ui);
+    assert.equal(u.title, FULL[ui].t);
+    u.lessons.forEach((l, li) => assert.equal(l.id, `u${ui}l${li}`));
+  });
+  assert.deepEqual(UNITS.map(u => u.pos).sort((a, b) => a - b), UNITS.map((_, i) => i));
+});
+
+test("displayOrder keeps index order without a mapping and ignores bad mappings", () => {
+  const us = [["A", "ml"], ["B", "ml"], ["C", "sd"], ["D", "ml"], ["E", "ml"]].map(([title, tr], ui) => ({ ui, title, tr }));
+  assert.deepEqual(L.displayOrder(us, {}).map(u => u.title), ["A", "B", "C", "D", "E"]);
+  assert.deepEqual(L.displayOrder(us, { E: "A", D: "A" }).map(u => u.title), ["A", "D", "E", "B", "C"]);
+  // a missing base, a base in another subject and a unit naming itself all keep index order
+  assert.deepEqual(L.displayOrder(us, { E: "Nope", D: "C", B: "B" }).map(u => u.title), ["A", "B", "C", "D", "E"]);
+  // no chains: E's base D is itself placed, so E keeps index order
+  assert.deepEqual(L.displayOrder(us, { E: "D", D: "A" }).map(u => u.title), ["A", "D", "B", "C", "E"]);
+});
+
+test("the study plan follows display order", () => {
+  const Plan = require("../plan.js");
+  const order = Plan.planOrder(UNITS, []);
+  const byPos = UNITS.slice().sort((a, b) => a.pos - b.pos).flatMap(u => u.lessons.map(l => l.id));
+  assert.deepEqual(order, byPos);
+  assert.equal(order.indexOf("u39l0"), order.indexOf("u2l17") + 1, "Deep Dive: Backprop starts right after Foundations");
+  assert.ok(!Plan.planOrder(UNITS, [39]).includes("u39l0"));
 });
 
 test("unit hues still follow the global unit index", () => {

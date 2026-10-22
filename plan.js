@@ -6,10 +6,13 @@ const DEFAULT_LESSON_SECS = 120;
 const MIN_SAMPLES = 3;
 const HISTORY_DAYS = 7;
 
-/* Lesson ids in the plan, in curriculum order, leaving out skipped units. */
+/* Lesson ids in the plan, in curriculum order, leaving out skipped units. units is indexed by unit index;
+   a unit's optional display position `pos` (from logic.js) orders it, so the plan follows the Learn tab. */
 function planOrder(units, skip) {
   const skipped = new Set(skip || []);
-  return units.filter((u, ui) => !skipped.has(ui)).flatMap(u => u.lessons.map(l => l.id));
+  return units.map((u, ui) => [u, ui]).filter(([, ui]) => !skipped.has(ui))
+    .sort(([a, ai], [b, bi]) => (a.pos ?? ai) - (b.pos ?? bi))
+    .flatMap(([u]) => u.lessons.map(l => l.id));
 }
 
 /* Units added after a plan was made (index >= knownUnits) count as skipped until the user ticks them,

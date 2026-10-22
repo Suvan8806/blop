@@ -1,7 +1,7 @@
 # blop
 
 A Duolingo-style study app for ML engineering, coding and system design interviews.
-22 units, 176 lessons, 534 questions across three subjects (ML, Coding, System Design). Works offline and installs to your home screen.
+53 units, 398 lessons, 1,200 questions across three subjects: ML (31 units), Coding (4) and System Design (18). Works offline and installs to your home screen.
 
 ## Deploy to Vercel
 
@@ -25,7 +25,8 @@ Content lives in plain script files, loaded in this order by `index.html`:
 |---|---|
 | `content.js` | ML units (also the original System Design and ML System Design units, 16 and 17) |
 | `content-code.js` | Coding units (LeetCode patterns) |
-| `content-sd.js`, `content-ml-deep.js` | coming later, in that order |
+| `content-sd.js` | System Design units (system design, ML system design, LLM systems) |
+| `content-ml-deep.js` | ML deep-dive units |
 | `content-extra.js` | extra questions appended to lessons that already shipped |
 
 **Never reorder or delete units, lessons or questions.** Ids come from array positions
@@ -35,6 +36,10 @@ new units at the end of `window.CURRICULUM`, new questions at the end of a lesso
 ### Units
 `{t:"Title", tr:"code", ls:[ lessons ]}`. `tr` is the subject: `"ml"` (default), `"code"` or `"sd"`.
 Units 16 and 17 are tagged `sd` in `logic.js` (`UNIT_SUBJECT`) so `content.js` stays untouched.
+
+Display order within a subject is unit order, except units named in `UNIT_AFTER` in `logic.js`: each is shown
+(and planned) right after the base unit whose title it names, so a deep dive sits next to the unit it deepens.
+This only changes display order and the "Unit N" numbers, never unit indices or ids.
 
 ### Lessons
 `[title, teach text, questions, {problems:[...]}]`. The 4th element is optional; `problems` is a
@@ -58,7 +63,7 @@ Match pairs: 4 `[term, definition]` pairs; definitions are shuffled. A wrong pai
 Keyboard: number keys pick options (or the next step to place), Backspace removes the last placed step,
 match uses numbers for terms and letters for definitions, and Enter checks or continues.
 
-After editing, bump `CACHE` in `sw.js` (e.g. "blop-v4") so phones pick up the change, and add any new file to its `ASSETS` list.
+After editing, bump `CACHE` in `sw.js` (e.g. "blop-v6") so phones pick up the change, and add any new file to its `ASSETS` list.
 
 Progress is stored in the browser on each device.
 
@@ -93,3 +98,4 @@ company, role, link and date. Each application has a status (applied, OA, phone 
 ghosted). The response rate counts applications whose status moved past Applied, except Ghosted. Links must be http(s).
 
 Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js`.
+`test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

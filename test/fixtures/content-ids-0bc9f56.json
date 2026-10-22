@@ -1,0 +1,899 @@
+{
+ "commit": "0bc9f56",
+ "note": "Lesson and question ids in content.js at commit 0bc9f56. Saved progress uses these; they must never disappear or move.",
+ "units": [
+  {
+   "ui": 0,
+   "title": "Start Here",
+   "lessons": [
+    {
+     "id": "u0l0",
+     "title": "What is machine learning?",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 1,
+   "title": "Python Refresher",
+   "lessons": [
+    {
+     "id": "u1l0",
+     "title": "Where Python Runs",
+     "questions": 3
+    },
+    {
+     "id": "u1l1",
+     "title": "Variables and Types",
+     "questions": 3
+    },
+    {
+     "id": "u1l2",
+     "title": "Numbers That Change",
+     "questions": 3
+    },
+    {
+     "id": "u1l3",
+     "title": "When Python Complains",
+     "questions": 3
+    },
+    {
+     "id": "u1l4",
+     "title": "Strings and f-strings",
+     "questions": 3
+    },
+    {
+     "id": "u1l5",
+     "title": "Comparisons and Booleans",
+     "questions": 3
+    },
+    {
+     "id": "u1l6",
+     "title": "If, Elif, Else",
+     "questions": 3
+    },
+    {
+     "id": "u1l7",
+     "title": "Lists and Indexing",
+     "questions": 3
+    },
+    {
+     "id": "u1l8",
+     "title": "Slicing and Changing Lists",
+     "questions": 3
+    },
+    {
+     "id": "u1l9",
+     "title": "Loops That Do Something",
+     "questions": 3
+    },
+    {
+     "id": "u1l10",
+     "title": "Range, Enumerate, Zip",
+     "questions": 3
+    },
+    {
+     "id": "u1l11",
+     "title": "While, Break, Continue",
+     "questions": 3
+    },
+    {
+     "id": "u1l12",
+     "title": "Comprehensions",
+     "questions": 3
+    },
+    {
+     "id": "u1l13",
+     "title": "Dicts and Lookups",
+     "questions": 3
+    },
+    {
+     "id": "u1l14",
+     "title": "Tuples and Nested Data",
+     "questions": 3
+    },
+    {
+     "id": "u1l15",
+     "title": "Functions and Returns",
+     "questions": 3
+    },
+    {
+     "id": "u1l16",
+     "title": "Arguments With Names",
+     "questions": 3
+    },
+    {
+     "id": "u1l17",
+     "title": "Objects, Methods, Attributes",
+     "questions": 3
+    },
+    {
+     "id": "u1l18",
+     "title": "NumPy Arrays",
+     "questions": 3
+    },
+    {
+     "id": "u1l19",
+     "title": "Pandas DataFrames",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 2,
+   "title": "Foundations",
+   "lessons": [
+    {
+     "id": "u2l0",
+     "title": "What is a Model?",
+     "questions": 3
+    },
+    {
+     "id": "u2l1",
+     "title": "Supervised vs Unsupervised",
+     "questions": 3
+    },
+    {
+     "id": "u2l2",
+     "title": "Features and Labels",
+     "questions": 3
+    },
+    {
+     "id": "u2l3",
+     "title": "Data Preprocessing",
+     "questions": 3
+    },
+    {
+     "id": "u2l4",
+     "title": "Train / Test Split",
+     "questions": 3
+    },
+    {
+     "id": "u2l5",
+     "title": "How a Model Actually Learns",
+     "questions": 3
+    },
+    {
+     "id": "u2l6",
+     "title": "Draw the Best Line",
+     "questions": 3
+    },
+    {
+     "id": "u2l7",
+     "title": "How We Score a Wrong Answer",
+     "questions": 3
+    },
+    {
+     "id": "u2l8",
+     "title": "From Line to Probability",
+     "questions": 3
+    },
+    {
+     "id": "u2l9",
+     "title": "Gradient Descent",
+     "questions": 3
+    },
+    {
+     "id": "u2l10",
+     "title": "Learning Rate",
+     "questions": 3
+    },
+    {
+     "id": "u2l11",
+     "title": "Overfitting, Underfitting & the Bias–Variance Tradeoff",
+     "questions": 3
+    },
+    {
+     "id": "u2l12",
+     "title": "Validation Loss & Early Stopping",
+     "questions": 3
+    },
+    {
+     "id": "u2l13",
+     "title": "Regularization",
+     "questions": 3
+    },
+    {
+     "id": "u2l14",
+     "title": "Cross-Validation",
+     "questions": 3
+    },
+    {
+     "id": "u2l15",
+     "title": "Evaluation Metrics",
+     "questions": 3
+    },
+    {
+     "id": "u2l16",
+     "title": "Foundations Review — Debug Your First Classifier",
+     "questions": 3
+    },
+    {
+     "id": "u2l17",
+     "title": "Spam Classifier",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 3,
+   "title": "Math Primer",
+   "lessons": [
+    {
+     "id": "u3l0",
+     "title": "Vectors & Dot Product",
+     "questions": 3
+    },
+    {
+     "id": "u3l1",
+     "title": "Matrices & Shapes",
+     "questions": 3
+    },
+    {
+     "id": "u3l2",
+     "title": "Derivative as Slope",
+     "questions": 3
+    },
+    {
+     "id": "u3l3",
+     "title": "Partial Derivatives",
+     "questions": 3
+    },
+    {
+     "id": "u3l4",
+     "title": "The Chain Rule",
+     "questions": 3
+    },
+    {
+     "id": "u3l5",
+     "title": "Probability Basics",
+     "questions": 3
+    },
+    {
+     "id": "u3l6",
+     "title": "Bayes’ Rule",
+     "questions": 3
+    },
+    {
+     "id": "u3l7",
+     "title": "Mean, Variance & Standard Deviation",
+     "questions": 3
+    },
+    {
+     "id": "u3l8",
+     "title": "Logs and Exponents",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 4,
+   "title": "Architectures",
+   "lessons": [
+    {
+     "id": "u4l0",
+     "title": "The Perceptron",
+     "questions": 3
+    },
+    {
+     "id": "u4l1",
+     "title": "Activation Functions",
+     "questions": 3
+    },
+    {
+     "id": "u4l2",
+     "title": "Multilayer Perceptrons",
+     "questions": 3
+    },
+    {
+     "id": "u4l3",
+     "title": "The Forward Pass",
+     "questions": 3
+    },
+    {
+     "id": "u4l4",
+     "title": "Errors Flow Back",
+     "questions": 3
+    },
+    {
+     "id": "u4l5",
+     "title": "Crunching the Numbers",
+     "questions": 3
+    },
+    {
+     "id": "u4l6",
+     "title": "Backprop in Code",
+     "questions": 3
+    },
+    {
+     "id": "u4l7",
+     "title": "Optimizers",
+     "questions": 3
+    },
+    {
+     "id": "u4l8",
+     "title": "Convolutions: The Window",
+     "questions": 3
+    },
+    {
+     "id": "u4l9",
+     "title": "Convolutions: Stacking Filters",
+     "questions": 3
+    },
+    {
+     "id": "u4l10",
+     "title": "Intro to CNNs",
+     "questions": 3
+    },
+    {
+     "id": "u4l11",
+     "title": "Pooling and Stride",
+     "questions": 3
+    },
+    {
+     "id": "u4l12",
+     "title": "Dropout and Batch Norm",
+     "questions": 3
+    },
+    {
+     "id": "u4l13",
+     "title": "Building a Complete CNN",
+     "questions": 3
+    },
+    {
+     "id": "u4l14",
+     "title": "Transfer Learning",
+     "questions": 3
+    },
+    {
+     "id": "u4l15",
+     "title": "CNN Shape Check",
+     "questions": 3
+    },
+    {
+     "id": "u4l16",
+     "title": "Architectures: Boss Fight",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 5,
+   "title": "Classical ML Algorithms",
+   "lessons": [
+    {
+     "id": "u5l0",
+     "title": "Decision Trees",
+     "questions": 3
+    },
+    {
+     "id": "u5l1",
+     "title": "Random Forests",
+     "questions": 3
+    },
+    {
+     "id": "u5l2",
+     "title": "Gradient Boosting",
+     "questions": 3
+    },
+    {
+     "id": "u5l3",
+     "title": "K-Nearest Neighbours",
+     "questions": 3
+    },
+    {
+     "id": "u5l4",
+     "title": "Support Vector Machines",
+     "questions": 3
+    },
+    {
+     "id": "u5l5",
+     "title": "Naive Bayes",
+     "questions": 3
+    },
+    {
+     "id": "u5l6",
+     "title": "K-Means Clustering",
+     "questions": 3
+    },
+    {
+     "id": "u5l7",
+     "title": "PCA and Dimensionality Reduction",
+     "questions": 3
+    },
+    {
+     "id": "u5l8",
+     "title": "Classical ML Capstone",
+     "questions": 3
+    },
+    {
+     "id": "u5l9",
+     "title": "Classical ML Review",
+     "questions": 3
+    },
+    {
+     "id": "u5l10",
+     "title": "Customer Churn Predictor",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 6,
+   "title": "RNNs & Sequence Models",
+   "lessons": [
+    {
+     "id": "u6l0",
+     "title": "Sequence Problems",
+     "questions": 3
+    },
+    {
+     "id": "u6l1",
+     "title": "Recurrent Neural Networks",
+     "questions": 3
+    },
+    {
+     "id": "u6l2",
+     "title": "Vanishing and Exploding Gradients",
+     "questions": 3
+    },
+    {
+     "id": "u6l3",
+     "title": "LSTMs and GRUs",
+     "questions": 3
+    },
+    {
+     "id": "u6l4",
+     "title": "Opening the Gates",
+     "questions": 3
+    },
+    {
+     "id": "u6l5",
+     "title": "Limits of Recurrence",
+     "questions": 3
+    },
+    {
+     "id": "u6l6",
+     "title": "Generating Text with an RNN",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 7,
+   "title": "Transformers & LLMs",
+   "lessons": [
+    {
+     "id": "u7l0",
+     "title": "Word Embeddings",
+     "questions": 3
+    },
+    {
+     "id": "u7l1",
+     "title": "Attention — Q, K, V",
+     "questions": 3
+    },
+    {
+     "id": "u7l2",
+     "title": "Attention Scores & Softmax",
+     "questions": 3
+    },
+    {
+     "id": "u7l3",
+     "title": "Multi-Head Attention",
+     "questions": 3
+    },
+    {
+     "id": "u7l4",
+     "title": "Positional Encoding",
+     "questions": 3
+    },
+    {
+     "id": "u7l5",
+     "title": "The Transformer Block",
+     "questions": 3
+    },
+    {
+     "id": "u7l6",
+     "title": "Tokenisation & Context Windows",
+     "questions": 3
+    },
+    {
+     "id": "u7l7",
+     "title": "Pre-training & Fine-tuning",
+     "questions": 3
+    },
+    {
+     "id": "u7l8",
+     "title": "Prompting & In-Context Learning",
+     "questions": 3
+    },
+    {
+     "id": "u7l9",
+     "title": "LLM Evaluation & Pitfalls",
+     "questions": 3
+    },
+    {
+     "id": "u7l10",
+     "title": "Decoding: Temperature, Top-p & the KV Cache",
+     "questions": 3
+    },
+    {
+     "id": "u7l11",
+     "title": "Financial Sentiment Fine-Tuner",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 8,
+   "title": "Responsible ML",
+   "lessons": [
+    {
+     "id": "u8l0",
+     "title": "What Is Bias in ML?",
+     "questions": 3
+    },
+    {
+     "id": "u8l1",
+     "title": "Fairness and Trade-offs",
+     "questions": 3
+    },
+    {
+     "id": "u8l2",
+     "title": "Privacy and Data",
+     "questions": 3
+    },
+    {
+     "id": "u8l3",
+     "title": "Misuse and Safety Basics",
+     "questions": 3
+    },
+    {
+     "id": "u8l4",
+     "title": "Fairness Audit",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 9,
+   "title": "MLOps",
+   "lessons": [
+    {
+     "id": "u9l0",
+     "title": "From Notebook to Production",
+     "questions": 3
+    },
+    {
+     "id": "u9l1",
+     "title": "Reproducibility and Seeds",
+     "questions": 3
+    },
+    {
+     "id": "u9l2",
+     "title": "Data Versioning and Drift",
+     "questions": 3
+    },
+    {
+     "id": "u9l3",
+     "title": "Monitoring and Eval in Prod",
+     "questions": 3
+    },
+    {
+     "id": "u9l4",
+     "title": "Serving and Latency",
+     "questions": 3
+    },
+    {
+     "id": "u9l5",
+     "title": "Debugging a Training Run",
+     "questions": 3
+    },
+    {
+     "id": "u9l6",
+     "title": "Production ML Pipeline",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 10,
+   "title": "Generative & Frontier",
+   "lessons": [
+    {
+     "id": "u10l0",
+     "title": "Generative vs Discriminative",
+     "questions": 3
+    },
+    {
+     "id": "u10l1",
+     "title": "Autoencoders and VAEs",
+     "questions": 3
+    },
+    {
+     "id": "u10l2",
+     "title": "GANs One-Pager",
+     "questions": 3
+    },
+    {
+     "id": "u10l3",
+     "title": "Diffusion Intuition",
+     "questions": 3
+    },
+    {
+     "id": "u10l4",
+     "title": "Latent Space Explorer",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 11,
+   "title": "Retrieval-Augmented Generation",
+   "lessons": [
+    {
+     "id": "u11l0",
+     "title": "Why LLMs Hallucinate",
+     "questions": 3
+    },
+    {
+     "id": "u11l1",
+     "title": "Embeddings as Search",
+     "questions": 3
+    },
+    {
+     "id": "u11l2",
+     "title": "Vector Databases",
+     "questions": 3
+    },
+    {
+     "id": "u11l3",
+     "title": "Retrieval Strategies",
+     "questions": 3
+    },
+    {
+     "id": "u11l4",
+     "title": "RAG in Practice",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 12,
+   "title": "AI Agents",
+   "lessons": [
+    {
+     "id": "u12l0",
+     "title": "What Are Agents",
+     "questions": 3
+    },
+    {
+     "id": "u12l1",
+     "title": "Function Calling",
+     "questions": 3
+    },
+    {
+     "id": "u12l2",
+     "title": "The ReAct Pattern",
+     "questions": 3
+    },
+    {
+     "id": "u12l3",
+     "title": "Agent Memory",
+     "questions": 3
+    },
+    {
+     "id": "u12l4",
+     "title": "Evaluating Agents",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 13,
+   "title": "Reinforcement Learning",
+   "lessons": [
+    {
+     "id": "u13l0",
+     "title": "Agents, Environments, Rewards",
+     "questions": 3
+    },
+    {
+     "id": "u13l1",
+     "title": "Explore vs Exploit & Q-Learning",
+     "questions": 3
+    },
+    {
+     "id": "u13l2",
+     "title": "Policy Gradients & PPO",
+     "questions": 3
+    },
+    {
+     "id": "u13l3",
+     "title": "RL for LLMs",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 14,
+   "title": "Fine-tuning in Practice",
+   "lessons": [
+    {
+     "id": "u14l0",
+     "title": "Fine-tune vs Prompt vs RAG",
+     "questions": 3
+    },
+    {
+     "id": "u14l1",
+     "title": "LoRA Intuition",
+     "questions": 3
+    },
+    {
+     "id": "u14l2",
+     "title": "Training Data for Fine-tuning",
+     "questions": 3
+    },
+    {
+     "id": "u14l3",
+     "title": "Fine-tuning Evaluation",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 15,
+   "title": "Practical ML Engineering",
+   "lessons": [
+    {
+     "id": "u15l0",
+     "title": "The HuggingFace Ecosystem",
+     "questions": 3
+    },
+    {
+     "id": "u15l1",
+     "title": "Loading and Running Models",
+     "questions": 3
+    },
+    {
+     "id": "u15l2",
+     "title": "Tokenizers in Depth",
+     "questions": 3
+    },
+    {
+     "id": "u15l3",
+     "title": "Pipelines and Inference",
+     "questions": 3
+    },
+    {
+     "id": "u15l4",
+     "title": "Putting It Together",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 16,
+   "title": "System Design",
+   "lessons": [
+    {
+     "id": "u16l0",
+     "title": "How to Run the Interview",
+     "questions": 3
+    },
+    {
+     "id": "u16l1",
+     "title": "Vertical vs Horizontal Scaling",
+     "questions": 3
+    },
+    {
+     "id": "u16l2",
+     "title": "Load Balancers",
+     "questions": 3
+    },
+    {
+     "id": "u16l3",
+     "title": "Caching",
+     "questions": 3
+    },
+    {
+     "id": "u16l4",
+     "title": "CDNs",
+     "questions": 3
+    },
+    {
+     "id": "u16l5",
+     "title": "SQL vs NoSQL",
+     "questions": 3
+    },
+    {
+     "id": "u16l6",
+     "title": "Sharding",
+     "questions": 3
+    },
+    {
+     "id": "u16l7",
+     "title": "Replication",
+     "questions": 3
+    },
+    {
+     "id": "u16l8",
+     "title": "CAP Theorem",
+     "questions": 3
+    },
+    {
+     "id": "u16l9",
+     "title": "Message Queues",
+     "questions": 3
+    },
+    {
+     "id": "u16l10",
+     "title": "Rate Limiting",
+     "questions": 3
+    },
+    {
+     "id": "u16l11",
+     "title": "Consistent Hashing",
+     "questions": 3
+    },
+    {
+     "id": "u16l12",
+     "title": "Back-of-Envelope Estimates",
+     "questions": 3
+    },
+    {
+     "id": "u16l13",
+     "title": "Design a URL Shortener",
+     "questions": 3
+    }
+   ]
+  },
+  {
+   "ui": 17,
+   "title": "ML System Design",
+   "lessons": [
+    {
+     "id": "u17l0",
+     "title": "A Framework for ML Design Rounds",
+     "questions": 3
+    },
+    {
+     "id": "u17l1",
+     "title": "Offline vs Online Metrics",
+     "questions": 3
+    },
+    {
+     "id": "u17l2",
+     "title": "Two-Stage Recommenders",
+     "questions": 3
+    },
+    {
+     "id": "u17l3",
+     "title": "Feature Stores & Training-Serving Skew",
+     "questions": 3
+    },
+    {
+     "id": "u17l4",
+     "title": "Batch vs Real-Time Inference",
+     "questions": 3
+    },
+    {
+     "id": "u17l5",
+     "title": "A/B Testing Models",
+     "questions": 3
+    },
+    {
+     "id": "u17l6",
+     "title": "Cold Start & Labels",
+     "questions": 3
+    },
+    {
+     "id": "u17l7",
+     "title": "Shadow & Canary Deployment",
+     "questions": 3
+    }
+   ]
+  }
+ ]
+}
