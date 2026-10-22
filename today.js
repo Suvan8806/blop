@@ -26,12 +26,15 @@ function lessonItem(id, isNext){
     <span><div class="lt">${esc(l.title)}</div><div class="ls">${state} · ${esc(unitLabel(l.ui))}</div></span></button></li>`;
 }
 function paceText(s){
-  if (s.overdue) return `Your deadline (${Plan.dayLabel(s.end)}) has passed, so everything left is due today. Pick a new length below.`;
-  const base = `${s.doneInPlan} of ${s.total} done · ${plural(s.daysLeft, "day")} left, ends ${Plan.dayLabel(s.end)}.`;
-  if (!s.pace || s.finishDay === null) return base;
+  const t = today(), date = d => Plan.dateLabel(d, t);
+  if (s.overdue) return `Your deadline (${date(s.end)}) has passed, so everything left is due today. Pick a new length below.`;
+  const base = `${s.doneInPlan} of ${s.total} done · ${plural(s.daysLeft, "day")} left, ends ${date(s.end)}.`;
+  const rate = `${Math.round(s.pace * 10) / 10} a day over the last ${plural(s.paceDays, "day")}`;
+  if (s.projection === "behind") return `${base} You’re behind pace (${rate}). A few extra lessons this week will catch you up.`;
+  if (s.projection !== "date") return base;
   const diff = s.end - s.finishDay;
   const when = diff > 0 ? `, ${plural(diff, "day")} early` : diff < 0 ? `, ${plural(-diff, "day")} late` : ", right on time";
-  return `${base} At your pace (${Math.round(s.pace * 10) / 10} a day) you’d finish ${Plan.dayLabel(s.finishDay)}${when}.`;
+  return `${base} At your recent pace (${rate}) you’d finish ${date(s.finishDay)}${when}.`;
 }
 function aheadHTML(s){
   const a = s.overdue ? -s.remaining : Plan.aheadBy(s, S.plan.start, S.plan.days, today());
@@ -154,7 +157,7 @@ function planSetupHTML(secs){
       <div><b>${left ? pv.perDay : 0}</b><small>a day</small></div>
       <div><b>~${left ? pv.minutes : 0}</b><small>min a day</small></div>
     </div>
-    <p>Done by <b>${Plan.dayLabel(today() + draftDays - 1)}</b>. Each lesson is a short read plus a few questions, about ${Math.round(secs / 60 * 10) / 10} min.
+    <p>Done by <b>${Plan.dateLabel(today() + draftDays - 1, today())}</b>. Each lesson is a short read plus a few questions, about ${Math.round(secs / 60 * 10) / 10} min.
     If you do more or fewer on a day, the days after it adjust.</p>
     <button class="cta" id="startplan" ${left ? "" : "disabled"}>Start my plan</button></div>`;
 }
@@ -198,7 +201,7 @@ function bind(app, s, secs, render){
   });
   app.querySelectorAll("[data-relen]").forEach(b => b.onclick = () => {
     S.plan = { ...S.plan, days: today() - S.plan.start + +b.dataset.relen, updatedAt: Date.now() }; commit(); render();
-    toast(`Plan now ends ${Plan.dayLabel(today() + +b.dataset.relen - 1)}.`);
+    toast(`Plan now ends ${Plan.dateLabel(today() + +b.dataset.relen - 1, today())}.`);
   });
   app.querySelectorAll("[data-start]").forEach(b => b.onclick = () => {
     const l = BY_ID[b.dataset.start];

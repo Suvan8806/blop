@@ -99,14 +99,29 @@ function schedule({ order, done, doneOn, today, start, days }) {
 
   const doneInPlan = order.length - remaining.length;
   const sinceStart = order.filter(id => done[id] && doneOn[id] >= start).length;
-  // Today only counts toward the pace once you've done something today, so mornings don't read as "late".
-  const elapsed = Math.max(1, today - start + (doneToday ? 1 : 0));
-  const pace = sinceStart / elapsed;
-  const finishDay = !remaining.length ? today
-    : pace > 0 ? today + Math.ceil(remaining.length / pace) - 1 : null;
+  const p = projectFinish({ order, done, doneOn, today, start, days, remaining: remaining.length, doneToday });
 
   return { end, overdue, daysLeft, todayTarget, doneToday, todayLeft, plan, history, sinceStart,
-           total: order.length, doneInPlan, remaining: remaining.length, pace, finishDay };
+           total: order.length, doneInPlan, remaining: remaining.length, ...p };
+}
+
+/* Pace and projected finish, from the last PACE_DAYS plan days (or since the start, if that's shorter).
+   Today only counts once you've done something today, so mornings don't read as "late".
+   projection: "done" (nothing left), "hidden" (fewer than MIN_PACE_DAYS days of data), "behind" (no
+   progress lately, or a finish more than LATE_FACTOR times the plan's length after its start), or "date".
+   finishDay is set only for "done" and "date". */
+const PACE_DAYS = 7, MIN_PACE_DAYS = 2, LATE_FACTOR = 2;
+function projectFinish({ order, done, doneOn, today, start, days, remaining, doneToday }) {
+  const last = doneToday ? today : today - 1;            // last day that counts
+  const from = Math.max(start, last - PACE_DAYS + 1);
+  const paceDays = Math.max(0, last - from + 1);
+  const recent = order.filter(id => done[id] && doneOn[id] >= from && doneOn[id] <= last).length;
+  const pace = paceDays ? recent / paceDays : 0;
+  if (!remaining) return { pace, paceDays, projection: "done", finishDay: today };
+  if (paceDays < MIN_PACE_DAYS) return { pace, paceDays, projection: "hidden", finishDay: null };
+  const finishDay = pace > 0 ? today + Math.ceil(remaining / pace) - 1 : null;
+  if (finishDay === null || finishDay - start + 1 > LATE_FACTOR * days) return { pace, paceDays, projection: "behind", finishDay: null };
+  return { pace, paceDays, projection: "date", finishDay };
 }
 
 /* Lessons ahead of (+) or behind (-) an even pace from the plan's start. Work today only counts as
@@ -169,6 +184,12 @@ function dayDate(day) { return new Date(day * DAY_MS); } // read it with getUTC*
 function dayLabel(day, opts) {
   return dayDate(day).toLocaleDateString(undefined, Object.assign({ timeZone: "UTC" }, opts || { weekday: "short", month: "short", day: "numeric" }));
 }
+/* "Sat, Nov 20", with the year added ("Sat, Nov 20, 2027") when the day isn't in today's year. */
+function dateLabel(day, today) {
+  const yearOf = d => dayDate(d).getUTCFullYear();
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  return dayLabel(day, yearOf(day) === yearOf(today) ? opts : { ...opts, year: "numeric" });
+}
 function ymd(day) {
   const d = dayDate(day), p = n => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
@@ -204,6 +225,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, projectFinish, PACE_DAYS, MIN_PACE_DAYS, LATE_FACTOR, preview, dayLabel, dateLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);

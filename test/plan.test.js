@@ -65,9 +65,11 @@ test("reminder never ends before it starts", () => {
 
 test("an on-schedule user isn't called late before today's first lesson", () => {
   const order = ids(10);
-  const a = markDone(order.slice(0, 2), START);
-  const s = Plan.schedule({ order, done: a.done, doneOn: a.doneOn, today: START + 1, start: START, days: 5 });
+  const a = markDone(order.slice(0, 2), START), b = markDone(order.slice(2, 4), START + 1);
+  const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn }, today: START + 2, start: START, days: 5 });
   assert.equal(s.pace, 2);
+  assert.equal(s.paceDays, 2);
+  assert.equal(s.projection, "date");
   assert.equal(s.finishDay, s.end);
 });
 
@@ -88,10 +90,11 @@ test("past days record what you actually did", () => {
 
 test("a fast pace projects an earlier finish than the deadline", () => {
   const order = ids(100);
-  const { done, doneOn } = markDone(order.slice(0, 20), START);
-  const s = Plan.schedule({ order, done, doneOn, today: START, start: START, days: 30 });
+  const a = markDone(order.slice(0, 20), START), b = markDone(order.slice(20, 40), START + 1);
+  const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn }, today: START + 1, start: START, days: 30 });
   assert.equal(s.pace, 20);
-  assert.equal(s.finishDay, START + 3); // 80 left at 20/day
+  assert.equal(s.projection, "date");
+  assert.equal(s.finishDay, START + 3); // 60 left at 20/day, counting today
   assert.ok(s.finishDay < s.end);
 });
 
@@ -264,4 +267,91 @@ test("dayStatus colours days by target met, partly done, missed, upcoming and re
   assert.equal(st(12, 0, 2), "upcoming");
   assert.equal(st(12, 0, 0), "rest");
   assert.equal(st(5, 4, null), "off");
+});
+
+/* ---------- pace projection (the "finish Sat, Nov 20, 365 days late" bug) ---------- */
+test("one day of data hides the projection, even a busy first day", () => {
+  const order = ids(100);
+  const { done, doneOn } = markDone(order.slice(0, 20), START);
+  const s = Plan.schedule({ order, done, doneOn, today: START, start: START, days: 30 });
+  assert.equal(s.paceDays, 1);
+  assert.equal(s.projection, "hidden");
+  assert.equal(s.finishDay, null);
+});
+
+test("the morning of day two still has only one counted day, so nothing is projected", () => {
+  const order = ids(100);
+  const { done, doneOn } = markDone(order.slice(0, 1), START);
+  const s = Plan.schedule({ order, done, doneOn, today: START + 1, start: START, days: 30 });
+  assert.equal(s.projection, "hidden");
+});
+
+test("pace uses only the last 7 plan days, not the whole plan", () => {
+  const order = ids(200);
+  // 60 lessons in the first week, then 2 a day for the next 7 days.
+  let done = {}, doneOn = {}, n = 0;
+  const add = (count, day) => { for (let i = 0; i < count; i++, n++) { done[order[n]] = true; doneOn[order[n]] = day; } };
+  for (let d = 0; d < 6; d++) add(10, START + d);
+  for (let d = 6; d < 13; d++) add(2, START + d);
+  const s = Plan.schedule({ order, done, doneOn, today: START + 13, start: START, days: 60 });
+  assert.equal(s.paceDays, 7);
+  assert.equal(s.pace, 2);
+  assert.equal(s.finishDay, START + 13 + Math.ceil((200 - 74) / 2) - 1);
+});
+
+test("a short plan uses every day since its start", () => {
+  const order = ids(30);
+  const a = markDone(order.slice(0, 3), START), b = markDone(order.slice(3, 4), START + 2);
+  const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn }, today: START + 3, start: START, days: 30 });
+  assert.equal(s.paceDays, 3);
+  assert.equal(s.pace, 4 / 3);
+});
+
+test("lessons done before the plan started don't inflate the pace", () => {
+  const order = ids(50);
+  const a = markDone(order.slice(0, 20), START - 3), b = markDone(order.slice(20, 22), START);
+  const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn }, today: START + 2, start: START, days: 30 });
+  assert.equal(s.paceDays, 2);
+  assert.equal(s.pace, 1);
+});
+
+test("an absurd projection says behind pace instead of a date", () => {
+  const order = ids(157);
+  const { done, doneOn } = markDone(order.slice(0, 1), START);
+  const s = Plan.schedule({ order, done, doneOn, today: START + 3, start: START, days: 30 });
+  assert.equal(s.paceDays, 3);
+  assert.equal(s.projection, "behind"); // 156 left at 1/3 a day is over a year away
+  assert.equal(s.finishDay, null);
+});
+
+test("no progress at all in the window is behind pace", () => {
+  const order = ids(40);
+  const s = Plan.schedule({ order, done: {}, doneOn: {}, today: START + 5, start: START, days: 30 });
+  assert.equal(s.pace, 0);
+  assert.equal(s.projection, "behind");
+});
+
+test("a late but sane finish (under twice the plan length) still gets a date", () => {
+  const order = ids(60);
+  const a = markDone(order.slice(0, 1), START), b = markDone(order.slice(1, 2), START + 1);
+  const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn }, today: START + 2, start: START, days: 30 });
+  assert.equal(s.projection, "date"); // 58 left at 1 a day: finishes on day 60, exactly 2x
+  assert.equal(s.finishDay - START + 1, 60);
+  assert.ok(s.finishDay > s.end);
+});
+
+test("nothing left projects today as the finish", () => {
+  const order = ids(5);
+  const { done, doneOn } = markDone(order, START);
+  const s = Plan.schedule({ order, done, doneOn, today: START, start: START, days: 30 });
+  assert.equal(s.projection, "done");
+  assert.equal(s.finishDay, START);
+});
+
+test("dates show the year only when it isn't this year", () => {
+  const day = (y, m, d) => Date.UTC(y, m, d) / 864e5;
+  const t = day(2026, 9, 22);
+  assert.doesNotMatch(Plan.dateLabel(day(2026, 10, 20), t), /2026/);
+  assert.match(Plan.dateLabel(day(2027, 10, 20), t), /2027/);
+  assert.match(Plan.dateLabel(day(2025, 0, 2), t), /2025/);
 });
