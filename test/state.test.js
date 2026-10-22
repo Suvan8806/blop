@@ -43,3 +43,10 @@ test("reminder times are validated", () => {
   assert.equal(St.validTime("25:00"), St.DEFAULT_REMIND);
   assert.equal(St.validTime(undefined), "19:00");
 });
+
+test("reset keeps mock interview history", () => {
+  const mock = [{ id: "m1", promptId: "ml-bias-variance", answer: "a", result: {}, day: 1, updatedAt: 1 }];
+  const out = St.resetProgress({ done: { a: true }, xp: 9, mock }, 5);
+  assert.deepEqual(out.mock, mock);
+  assert.deepEqual(out.done, {});
+});

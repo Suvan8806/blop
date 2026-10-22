@@ -173,6 +173,12 @@ B.sync = {
   signedIn: () => !!st.user,
   soon: () => { if (st.user) sched.soon(); },
   now: () => { if (st.user) { changed({ syncError: "" }); sched.flush(); } },
+  /* A fresh access token for our own API (/api/grade), or "" when signed out. getSession refreshes an expired one. */
+  token: async () => {
+    if (!sb || !st.user) return "";
+    const { data } = await sb.auth.getSession();
+    return data && data.session && data.session.access_token ? data.session.access_token : "";
+  },
   google, sendCode, verify, signOut,
   setEmail: email => { st.email = String(email || ""); },
   back: () => changed({ step: "email", error: "" })

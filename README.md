@@ -63,7 +63,7 @@ Match pairs: 4 `[term, definition]` pairs; definitions are shuffled. A wrong pai
 Keyboard: number keys pick options (or the next step to place), Backspace removes the last placed step,
 match uses numbers for terms and letters for definitions, and Enter checks or continues.
 
-After editing, bump `CACHE` in `sw.js` (e.g. "blop-v6") so phones pick up the change, and add any new file to its `ASSETS` list.
+After editing, bump `CACHE` in `sw.js` (e.g. "blop-v8") so phones pick up the change, and add any new file to its `ASSETS` list.
 
 Progress is stored in the browser on each device. Signing in (optional, see below) syncs it across devices.
 
@@ -105,8 +105,8 @@ Then bump `CACHE` in `sw.js` and deploy. (`config.js` is fetched network-first, 
   drops a finished lesson).
 
 Merge rules: finished lessons are a union (earliest day kept), XP and missed-question counts take the max, the streak
-comes from the side that studied most recently, review schedule entries and jobs (including delete tombstones) take
-the newer `updatedAt`, the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
+comes from the side that studied most recently, review schedule entries, jobs and mock interview attempts (including delete tombstones) take
+the newer `updatedAt` (attempts are then capped at the newest 100), the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
 targets merged by max, lesson times are a union capped at 20, settings follow `settingsUpdatedAt`, today's counters
 take the max on the same day, and any field added later follows the newer top-level `updatedAt`.
 
@@ -120,11 +120,15 @@ take the max on the same day, and any field added later follows the newer top-le
 - `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
 - `config.js`: Supabase URL and anon key (empty = no sync).
 - `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
-- `supabase/schema.sql`: the `progress` table and its row-level security policies.
+- `supabase/schema.sql`: the `progress` table and its row-level security policies, and the `grade_usage` table.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
 - `jobs-ui.js`: the Jobs tab.
+- `mock-prompts.js`: the mock interview questions, rubrics and outlines (browser script and node module).
+- `mock.js`: pure mock-interview logic (answer checks, clamping grades, attempt history and trends). Tested in node.
+- `mock-ui.js`: the Mock tab.
+- `api/grade.js`, `api/_lib/`: the grading function (see "Mock interviews"). Tested in node with a stubbed fetch.
 - `app.js`: tabs, the Learn and Profile screens.
 
 They share code through `window.Blop`.
@@ -134,6 +138,8 @@ The Today tab spreads the lessons you have left over 14, 30, 45 or 60 days. Toda
 for the day; every day after it is recalculated from what's actually left, so extra lessons make
 later days lighter and missed days make them heavier. Untick units you already know to drop them
 from the count; units added to the app after a plan starts stay out of it until you tick them.
+The pace line projects your finish from the last 7 plan days (or since the start, if shorter); it appears after 2 days
+of data, and says "behind pace" instead of a date when the projection is more than twice the plan's length.
 The month calendar colours each plan day: target met, partly done, missed, upcoming or rest day. "Add to calendar" downloads an .ics file with a daily alert until the plan ends.
 
 ## Spaced repetition
@@ -149,10 +155,62 @@ ghosted). The response rate counts applications whose status moved past Applied,
 a bare address like `example.com:8080/job` gets `https://` added. Deleting an application leaves a small tombstone
 `{id, deleted:true, updatedAt}` so the deletion can sync; it's hidden everywhere.
 
+## Mock interviews
+The Mock tab has 42 open-ended interview questions (`mock-prompts.js`) in four categories: ML concepts, ML & LLM
+system design, coding explanation and behavioral-technical. Pick one (or tap Random), type or dictate an answer (the
+phone keyboard's mic button dictates), optionally against a 5/10/15-minute timer, and submit. `/api/grade` scores it
+0-5 on each of the question's 3-5 rubric areas and returns an overall score, strengths, what was missing and a
+model-answer outline. Attempts are saved in `S.mock` (newest 100 kept, synced like jobs, with delete tombstones), and
+each question shows its score trend. Drafts are kept on the device (`blop-mock-drafts` in localStorage) until graded.
+
+Grading requires sign-in (the sync account) and allows 20 grades per user per UTC day. Without sync configured or
+signed out, the tab explains that and keeps the draft.
+
+### How grading works
+- `api/grade.js` is a Vercel Node function (CommonJS, plain `fetch`, no dependencies, so nothing to install or build).
+  Its logic is in `api/_lib/grade-handler.js` (request flow) and `api/_lib/grade-core.js` (pure helpers); Vercel
+  doesn't turn files under `_`-prefixed paths into routes.
+- POST only (OPTIONS answers 204), same-origin only (no CORS headers), JSON only.
+- `Authorization: Bearer <Supabase access token>` is checked against `SUPABASE_URL/auth/v1/user` with the anon key.
+- `promptId` must exist in `mock-prompts.js` (required server-side) and the answer must be 20-6000 characters. Bad
+  input is rejected before it counts against the daily limit.
+- The daily count is incremented atomically in Postgres (`increment_grade_usage`, service-role only) before grading,
+  and given back (`refund_grade_usage`) if no grade is delivered.
+- Groq (`openai/gpt-oss-120b`, low reasoning effort, JSON mode) grades first. If it fails for any reason (429, 5xx,
+  timeout, unusable JSON) and `GEMINI_API_KEY` is set, Gemini (`gemini-3.5-flash-lite`, OpenAI-compatible endpoint)
+  is tried. The whole request stays within 27 s (the function's `maxDuration` is 30 s in `vercel.json`).
+- The rubric and outline go in the system message; the answer goes in the user message inside a block marked with a
+  random nonce, and the model is told it is data to grade, not instructions.
+- The reply is parsed and clamped (`Mock.clampResult` in `mock.js`): one integer score 0-5 per rubric area, overall
+  = their mean, at most 6 items of at most 300 characters per list. The app clamps again and renders everything as
+  escaped text.
+- Keys are only read from env vars on the server. Logs never include the answer, the token or keys.
+
+### Setup
+1. In Supabase → SQL Editor, run the "Mock interview grading" section at the end of `supabase/schema.sql` (it creates
+   `grade_usage` with RLS on and no policies, and `increment_grade_usage` / `refund_grade_usage`, executable only by `service_role`).
+2. Get a Groq key at console.groq.com (no card). Optionally get a Gemini key at aistudio.google.com/apikey.
+3. Add the server env vars for Production and Preview (each command asks for the value):
+   ```
+   npx vercel env add SUPABASE_URL production
+   npx vercel env add SUPABASE_URL preview
+   npx vercel env add SUPABASE_ANON_KEY production
+   npx vercel env add SUPABASE_ANON_KEY preview
+   npx vercel env add SUPABASE_SERVICE_ROLE_KEY production
+   npx vercel env add SUPABASE_SERVICE_ROLE_KEY preview
+   npx vercel env add GROQ_API_KEY production
+   npx vercel env add GROQ_API_KEY preview
+   npx vercel env add GEMINI_API_KEY production
+   npx vercel env add GEMINI_API_KEY preview
+   ```
+   `SUPABASE_URL` and `SUPABASE_ANON_KEY` are the same values as in `config.js`. `SUPABASE_SERVICE_ROLE_KEY` is the
+   service-role (or `sb_secret_...`) key from Supabase → Project Settings → API; it must never go in `config.js`.
+   `GEMINI_API_KEY` is optional. Redeploy after adding env vars.
+
 ## Reset
 Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
-times, today's counts and the study plan. It keeps job applications and settings (daily goal, job target, subject,
+times, today's counts and the study plan. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js`.
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

@@ -108,8 +108,8 @@ test("day counters: same day takes the max, otherwise the later day", () => {
 });
 
 test("unknown future fields come from the newer side; one-sided ones are kept", () => {
-  const m = sym({ mock: ["old"], extra: 1, updatedAt: 5 }, { mock: ["new"], other: 2, updatedAt: 9 });
-  assert.deepEqual(m.mock, ["new"]);
+  const m = sym({ future: ["old"], extra: 1, updatedAt: 5 }, { future: ["new"], other: 2, updatedAt: 9 });
+  assert.deepEqual(m.future, ["new"]);
   assert.equal(m.extra, 1);
   assert.equal(m.other, 2);
   assert.equal(m.updatedAt, 9);
@@ -171,4 +171,39 @@ test("merge doesn't modify its inputs", () => {
   const before = JSON.stringify([a, b]);
   M.merge(a, b);
   assert.equal(JSON.stringify([a, b]), before);
+});
+
+/* ---------- mock interview attempts ---------- */
+const attempt = (id, at, extra = {}) => ({ id, promptId: "ml-bias-variance", answer: "an answer", day: T,
+  result: { scores: [{ area: "Definitions", score: 3, note: "" }], overall: 3, strengths: [], gaps: [], outline: [] }, updatedAt: at, ...extra });
+
+test("mock attempts merge per id by updatedAt, union of both sides, newest first", () => {
+  const a = { mock: [attempt("a", 5), attempt("b", 7)] };
+  const b = { mock: [attempt("b", 3, { answer: "older copy" }), attempt("c", 9)] };
+  const m = sym(a, b);
+  assert.deepEqual(m.mock.map(x => x.id), ["c", "b", "a"]);
+  assert.equal(m.mock.find(x => x.id === "b").answer, "an answer");
+});
+
+test("a deleted attempt stays deleted unless the other side changed it later", () => {
+  const m = sym({ mock: [{ id: "a", deleted: true, updatedAt: 8 }, { id: "t", deleted: true, updatedAt: 4 }] },
+    { mock: [attempt("a", 6), attempt("t", 4)] });
+  assert.equal(m.mock.find(x => x.id === "a").deleted, true); // delete is newer
+  assert.equal(m.mock.find(x => x.id === "t").deleted, true); // exact tie: the tombstone wins
+  const n = sym({ mock: [{ id: "a", deleted: true, updatedAt: 5 }] }, { mock: [attempt("a", 6)] });
+  assert.equal(n.mock[0].deleted, undefined);
+});
+
+test("mock history is capped at the newest 100 after a merge, the same either way round", () => {
+  const a = { mock: Array.from({ length: 80 }, (_, i) => attempt(`a${i}`, 1000 + i * 2)) };
+  const b = { mock: Array.from({ length: 80 }, (_, i) => attempt(`b${i}`, 1001 + i * 2)) };
+  const m = sym(a, b);
+  assert.equal(m.mock.length, M.KEEP_MOCK);
+  assert.equal(m.mock[0].updatedAt, 1001 + 79 * 2);
+  assert.ok(m.mock.every(x => x.updatedAt >= 1000 + 60)); // the 60 oldest dropped
+});
+
+test("missing or malformed mock lists merge to what's valid", () => {
+  assert.deepEqual(M.merge({}, {}).mock, []);
+  assert.deepEqual(M.merge({ mock: "x" }, { mock: [null, 5, { id: "" }, attempt("ok", 1)] }).mock.map(x => x.id), ["ok"]);
 });

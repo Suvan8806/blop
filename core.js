@@ -20,7 +20,7 @@ function normalize(raw){
   const src = isObj(raw) ? raw : {};
   const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
     doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{}, remind: ST ? ST.DEFAULT_REMIND : "19:00",
-    settingsUpdatedAt:0, updatedAt:0, jobs:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, src);
+    settingsUpdatedAt:0, updatedAt:0, jobs:[], mock:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, src);
   ["done", "doneOn", "miss", "srs"].forEach(k => { if (!isObj(st[k])) st[k] = {}; });
   if (!Array.isArray(st.times)) st.times = [];
   // Synced data comes from another device, so numbers shown on screen are checked to really be numbers.
@@ -46,6 +46,7 @@ function normalize(raw){
     st.srs = SRS.migrate(st.srs, known, today(), Date.now());
   }
   if (window.Jobs) { st.jobs = Jobs.sanitize(st.jobs); st.jobTarget = Jobs.clampTarget(st.jobTarget); }
+  st.mock = window.Mock ? Mock.sanitize(st.mock) : (Array.isArray(st.mock) ? st.mock : []);
   return st;
 }
 function load(){
@@ -117,6 +118,7 @@ const I = {
   sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4 4.3-6 8-6s6.8 2 8 6"/></svg>',
+  chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12.5a7.5 7.5 0 0 1-11 6.6L4 20.5l1.4-4.6A7.5 7.5 0 1 1 20 12.5z"/><path d="M9 11h6M9 14.5h4"/></svg>',
   case:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18"/></svg>',
   trophy:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3zm0 4H6v1a2 2 0 0 0 1 1.7zm10 0v2.7A2 2 0 0 0 18 8V7z"/></svg>'
 };

@@ -3,6 +3,7 @@
    - done: union. doneOn: earliest day per lesson. xp: max. miss: max per question.
    - streak/last: the pair from the side with the more recent `last`.
    - srs: per lesson, newer updatedAt. jobs: per id, newer updatedAt (tombstones included).
+   - mock (interview attempts): per id, newer updatedAt (tombstones included), then the newest KEEP_MOCK.
    - plan: newer updatedAt; for the same plan, targets merge per day with max.
    - times: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
    - day counters: same day -> max; otherwise the later day.
@@ -13,8 +14,9 @@
 const St = typeof module !== "undefined" && module.exports ? require("./state.js") : root.BlopState;
 const SETTINGS = St.SETTINGS_KEYS;
 const KEEP_TIMES = 20;
+const KEEP_MOCK = 100; // same cap as mock.js MAX_ATTEMPTS
 const LOCAL_ONLY = ["open"]; // which unit is expanded on this screen
-const KNOWN = new Set(["done", "doneOn", "xp", "streak", "last", "miss", "srs", "jobs", "plan", "times",
+const KNOWN = new Set(["done", "doneOn", "xp", "streak", "last", "miss", "srs", "jobs", "mock", "plan", "times",
   "day", "dayLessons", "dayXp", "updatedAt", "settingsUpdatedAt", ...SETTINGS, ...LOCAL_ONLY]);
 
 const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
@@ -57,21 +59,28 @@ function mergeByStamp(a, b) {
   });
   return out;
 }
-/* Per id, the newer copy. On an exact tie a tombstone wins, so a delete isn't undone by a stale copy. */
+/* The newer copy of one item. On an exact tie a tombstone wins, so a delete isn't undone by a stale copy. */
+function pickItem(x, y) {
+  if (!y) return x;
+  if (stamp(x) !== stamp(y)) return stamp(x) > stamp(y) ? x : y;
+  if (!!x.deleted !== !!y.deleted) return x.deleted ? x : y;
+  return newer(x, y);
+}
+const withIds = l => (Array.isArray(l) ? l : []).filter(j => isObj(j) && typeof j.id === "string" && j.id);
+/* Per id, the newer copy (pickItem). Local order first, then items only the other side has. */
 function mergeJobs(a, b) {
-  const valid = l => (Array.isArray(l) ? l : []).filter(j => isObj(j) && typeof j.id === "string" && j.id);
-  const la = valid(a), lb = valid(b);
+  const la = withIds(a), lb = withIds(b);
   const byB = new Map(lb.map(j => [j.id, j]));
-  const pick = (x, y) => {
-    if (!y) return x;
-    if (stamp(x) !== stamp(y)) return stamp(x) > stamp(y) ? x : y;
-    if (!!x.deleted !== !!y.deleted) return x.deleted ? x : y;
-    return newer(x, y);
-  };
+  const pick = pickItem;
   const seen = new Set(), out = [];
   la.forEach(j => { if (!seen.has(j.id)) { seen.add(j.id); out.push(pick(j, byB.get(j.id))); } });
   lb.forEach(j => { if (!seen.has(j.id)) { seen.add(j.id); out.push(j); } });
   return out;
+}
+/* Mock interview attempts: per id like jobs, then newest first (ties by id) and capped, so both orders agree. */
+function mergeMock(a, b) {
+  const order = (x, y) => stamp(y) - stamp(x) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+  return mergeJobs(a, b).sort(order).slice(0, KEEP_MOCK);
 }
 function mergeTargets(a, b) {
   const out = {};
@@ -134,6 +143,7 @@ function merge(local, remote) {
     miss: mergeMiss(obj(a.miss), obj(b.miss)),
     srs: mergeByStamp(obj(a.srs), obj(b.srs)),
     jobs: mergeJobs(a.jobs, b.jobs),
+    mock: mergeMock(a.mock, b.mock),
     plan: mergePlan(a.plan, b.plan),
     times: mergeTimes(top === a ? a.times : b.times, top === a ? b.times : a.times),
     ...pickSettings(a, b),
@@ -144,6 +154,6 @@ function merge(local, remote) {
   return out;
 }
 
-const Merge = { merge, mergeJobs, mergePlan, mergeTimes, mergeByStamp, KEEP_TIMES };
+const Merge = { merge, mergeJobs, mergeMock, mergePlan, mergeTimes, mergeByStamp, KEEP_TIMES, KEEP_MOCK };
 if (typeof module !== "undefined" && module.exports) module.exports = Merge; else root.Merge = Merge;
 })(typeof window !== "undefined" ? window : globalThis);

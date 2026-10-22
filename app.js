@@ -24,7 +24,7 @@ const app = $("#app");
 /* ---------- tabs ---------- */
 let tab = "learn";
 function renderTabs(){
-  const t = [["learn","Learn",I.path],["today","Today",I.sun],["jobs","Jobs",I.case],["profile","Profile",I.user]];
+  const t = [["learn","Learn",I.path],["today","Today",I.sun],["mock","Mock",I.chat],["jobs","Jobs",I.case],["profile","Profile",I.user]];
   $("#tabs").innerHTML = t.map(([k,label,ic]) =>
     `<button data-tab="${k}" ${tab===k?'aria-current="page"':""}><span class="ti">${ic}</span>${label}</button>`).join("");
   $("#tabs").querySelectorAll("button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0,0); });
@@ -133,10 +133,13 @@ function render(){
   renderTabs();
   if (tab === "learn") renderLearn();
   else if (tab === "today") B.renderToday ? B.renderToday(app, render) : renderStale();
+  else if (tab === "mock") B.renderMock ? B.renderMock(app, render) : renderStale();
   else if (tab === "jobs") B.renderJobs ? B.renderJobs(app, render) : renderStale();
   else renderProfile();
 }
 B.render = render;
+/* Switch tabs from another screen (e.g. Mock's "Sign in" button opens Profile). */
+B.goTab = k => { tab = k; render(); window.scrollTo(0,0); };
 
 render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
