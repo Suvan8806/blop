@@ -182,14 +182,47 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .remind{display:flex;gap:10px;align-items:stretch}
 .remind input{font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:0 12px;min-width:0}
 .remind .cta{flex:1}
+/* subjects */
+.subj{display:flex;gap:4px;margin-top:12px;background:var(--sunk);border-radius:14px;padding:4px}
+.subj button{flex:1 1 auto;min-height:42px;padding:8px 10px;border-radius:11px;font-weight:700;font-size:.92rem;color:var(--soft);white-space:nowrap}
+.subj button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 2px 0 var(--line)}
+.subhead{margin:16px 0 2px;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--soft)}
+.probs{background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:14px 16px}
+.probs h3{margin:0 0 6px;font-size:1rem}
+.probs ul{margin:0;padding-left:20px;line-height:1.65}
+/* question types */
+.blank{display:inline-block;min-width:4.5em;padding:0 4px;margin:0 2px;border-bottom:3px dashed var(--soft);color:var(--violet);text-align:center}
+.blank.filled{border-bottom-style:solid;border-color:var(--violet)}
+.blank.right{color:var(--green);border-color:var(--green)}
+.blank.wrong{color:var(--red);border-color:var(--red);text-decoration:line-through}
+.opts.words{display:flex;flex-wrap:wrap;gap:10px}
+.opts.words .opt{width:auto}
+.seq{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:8px}
+.seq .slot{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 16px;border:2px dashed var(--line);border-radius:16px;color:var(--soft)}
+.slot .k{flex:none;width:28px;height:28px;border-radius:8px;border:2px dashed var(--line);display:grid;place-items:center;font-size:.8rem;font-weight:700;color:var(--soft)}
+.opt.placed{border-color:var(--violet);box-shadow:0 3px 0 var(--violet)}
+.opt.placed .k{border-color:var(--violet);color:var(--violet)}
+.opt.right .k{border-color:var(--green);color:var(--green)}
+.opt.wrong .k{border-color:var(--red);color:var(--red)}
+.mterms{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.mterms .opt{padding:12px;font-weight:700;align-items:flex-start}
+.opt.flash{animation:shake .32s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <nav id="tabs" aria-label="Sections"></nav>
+<!-- Content: units are only ever appended, in this order (unit ids come from array order). -->
 <script src="/content.js"></script>
+<script src="/content-code.js"></script>
+<!-- Coming later, in this order: <script src="/content-sd.js"></script> then <script src="/content-ml-deep.js"></script> -->
+<script src="/content-extra.js"></script>
 <script src="/plan.js"></script>
+<script src="/logic.js"></script>
+<script src="/core.js"></script>
+<script src="/qtypes.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
