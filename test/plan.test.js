@@ -63,13 +63,27 @@ test("reminder never ends before it starts", () => {
   assert.match(ics, /UNTIL=19700210T235959/);
 });
 
+test("an on-schedule user isn't called late before today's first lesson", () => {
+  const order = ids(10);
+  const a = markDone(order.slice(0, 2), START);
+  const s = Plan.schedule({ order, done: a.done, doneOn: a.doneOn, today: START + 1, start: START, days: 5 });
+  assert.equal(s.pace, 2);
+  assert.equal(s.finishDay, s.end);
+});
+
+test("long calendar lines are folded at 75 octets", () => {
+  const ics = Plan.reminderICS({ fromDay: 0, endDay: 1, time: "08:00", minutes: 10, url: "https://a-very-long-preview-host-name.example.test/path" });
+  assert.ok(ics.split("\r\n").every(l => l.length <= 75));
+  assert.match(ics, /\r\n /);
+});
+
 test("past days record what you actually did", () => {
   const order = ids(157);
   const a = markDone(order.slice(0, 4), START), b = markDone(order.slice(4, 12), START + 1);
   const s = Plan.schedule({ order, done: { ...a.done, ...b.done }, doneOn: { ...a.doneOn, ...b.doneOn },
     today: START + 2, start: START, days: 30 });
   assert.deepEqual(s.history.map(h => h.did), [4, 8]);
-  assert.equal(s.pace, 4); // 12 lessons over 3 days counting today
+  assert.equal(s.pace, 6); // 12 lessons over the 2 finished days; today doesn't count until you start
 });
 
 test("a fast pace projects an earlier finish than the deadline", () => {

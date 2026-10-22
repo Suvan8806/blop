@@ -251,6 +251,9 @@ function paceHTML(s){
 }
 
 function planActiveHTML(s, secs){
+  if (!s.total) {
+    return `<div class="panel"><h3>No units selected</h3><p style="margin:0">Tick at least one unit below to plan your days.</p></div>${unitsPanel()}`;
+  }
   if (!s.remaining) {
     return `<div class="panel"><h3>Plan complete 🎉</h3><p>You finished every lesson in your plan${s.end > today() ? `, ${plural(s.end - today(), "day")} early` : ""}.
       Keep it fresh with the daily review.</p><button class="cta ghost" id="endplan">Start a new plan</button></div>${unitsPanel()}`;
@@ -326,7 +329,7 @@ function renderProfile(){
     <div class="panel"><div class="big">${doneCount}<span style="font-size:1rem;color:var(--soft)">/${ALL.length}</span></div><div class="k">lessons done</div></div>
     <div class="panel"><div class="big">${unitsDone}<span style="font-size:1rem;color:var(--soft)">/${UNITS.length}</span></div><div class="k">units finished</div></div>
   </div>
-  ${S.plan
+  ${dayGoal().plan
     ? `<div class="panel"><h3>Daily goal</h3><p style="margin:0">Your study plan sets this each day. Change it in the Plan tab.</p></div>`
     : `<div class="panel"><h3>Daily goal</h3><p>Lessons per day. Each takes about two minutes.</p>
     <div class="seg">${[1,2,3,5].map(n => `<button data-goal="${n}" aria-pressed="${S.goal===n}">${n}</button>`).join("")}</div></div>`}

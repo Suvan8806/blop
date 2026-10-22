@@ -53,7 +53,8 @@ function schedule({ order, done, doneOn, today, start, days }) {
 
   const doneInPlan = order.length - remaining.length;
   const sinceStart = order.filter(id => done[id] && doneOn[id] >= start).length;
-  const elapsed = Math.max(1, today - start + 1);
+  // Today only counts toward the pace once you've done something today, so mornings don't read as "late".
+  const elapsed = Math.max(1, today - start + (doneToday ? 1 : 0));
   const pace = sinceStart / elapsed;
   const finishDay = !remaining.length ? today
     : pace > 0 ? today + Math.ceil(remaining.length / pace) - 1 : null;
@@ -94,8 +95,17 @@ function reminderICS({ fromDay, endDay: lastDay, time, minutes, url }) {
     `DESCRIPTION:Open blop to see how many lessons today's plan has. ${url}`,
     `URL:${url}`,
     "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Time for today's blop lessons", "TRIGGER:PT0M", "END:VALARM",
-    "END:VEVENT", "END:VCALENDAR", ""
-  ].join("\r\n");
+    "END:VEVENT", "END:VCALENDAR"
+  ].map(foldLine).join("\r\n") + "\r\n";
+}
+
+/* RFC 5545: lines longer than 75 octets continue on the next line after a single space. */
+function foldLine(line) {
+  const max = 75;
+  if (line.length <= max) return line;
+  const parts = [line.slice(0, max)];
+  for (let i = max; i < line.length; i += max - 1) parts.push(" " + line.slice(i, i + max - 1));
+  return parts.join("\r\n");
 }
 
 const Plan = { planOrder, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
