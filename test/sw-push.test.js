@@ -22,7 +22,7 @@ const pushEvent = data => ({ data: data === null ? null : { json: () => JSON.par
 
 test("CACHE is bumped and the reminder scripts are cached", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(src, /const CACHE = "blop-v11"/);
+  assert.match(src, /const CACHE = "blop-v12"/);
   assert.ok(src.includes('"/push-logic.js"') && src.includes('"/push-ui.js"'));
 });
 
