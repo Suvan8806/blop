@@ -152,3 +152,33 @@ test("reminder file repeats daily until the deadline at the chosen time", () => 
   assert.match(ics, /DURATION:PT12M/);
   assert.match(ics, /BEGIN:VALARM[\s\S]*TRIGGER:PT0M[\s\S]*END:VALARM/);
 });
+
+test("units added after a plan was made are skipped until ticked", () => {
+  assert.deepEqual(Plan.effectiveSkip([2], 4, 6), [2, 4, 5]);
+  assert.deepEqual(Plan.effectiveSkip([], 6, 6), []);
+  const units = Array.from({ length: 6 }, (_, ui) => ({ lessons: [{ id: `u${ui}l0` }] }));
+  assert.deepEqual(Plan.planOrder(units, Plan.effectiveSkip([], 4, 6)), ["u0l0", "u1l0", "u2l0", "u3l0"]);
+});
+
+test("ticking a new unit adds only that unit and marks every unit known", () => {
+  const plan = { start: 1, days: 30, knownUnits: 4 };
+  const r = Plan.setUnit(plan, [1], 5, true, 7);
+  assert.equal(r.plan.knownUnits, 7);
+  assert.deepEqual(r.skip, [1, 4, 6]);
+  assert.equal(plan.knownUnits, 4); // input untouched
+});
+
+test("unticking an old unit keeps new units skipped", () => {
+  const r = Plan.setUnit({ start: 1, days: 30, knownUnits: 4 }, [], 0, false, 6);
+  assert.deepEqual(r.skip, [0, 4, 5]);
+  assert.equal(r.plan.knownUnits, 6);
+  const back = Plan.setUnit(r.plan, r.skip, 0, true, 6);
+  assert.deepEqual(back.skip, [4, 5]);
+});
+
+test("old plans without knownUnits migrate to the 18 units that existed before", () => {
+  assert.deepEqual(Plan.migratePlan({ start: 5, days: 30 }), { start: 5, days: 30, knownUnits: 18 });
+  const p = { start: 5, days: 30, knownUnits: 22 };
+  assert.equal(Plan.migratePlan(p), p);
+  assert.equal(Plan.migratePlan(null), null);
+});

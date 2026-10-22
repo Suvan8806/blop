@@ -19,6 +19,7 @@ function load(){
   const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
     doneOn:{}, times:[], plan:null, skip:[], subject:"ml" }, s && typeof s === "object" ? s : {});
   st.subject = L.validSubject(st.subject);
+  if (window.Plan) st.plan = Plan.migratePlan(st.plan);
   return st;
 }
 const S = load(); // same object for the whole session; reset() refills it in place

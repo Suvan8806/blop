@@ -6,9 +6,13 @@ const { UNITS, ALL, BY_ID, QS, S, I, $, esc, save, today, rollDay, liveStreak, t
 const app = $("#app");
 
 /* ---------- plan helpers ---------- */
+/* Units left out of the plan: the ones the user unticked, plus units added since the plan was made. */
+function planSkip(){
+  return S.plan && window.Plan ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
+}
 function sched(){
   if (!S.plan || !window.Plan) return null; // Plan is missing for one load if an old cached index.html is served
-  return Plan.schedule({ order: Plan.planOrder(UNITS, S.skip), done: S.done, doneOn: S.doneOn,
+  return Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
     today: today(), start: S.plan.start, days: S.plan.days });
 }
 function dayGoal(){
@@ -63,7 +67,7 @@ function lessonRow(l, nxt, todaySet){
 function unitHTML(u, s, todaySet){
   const done = u.lessons.filter(l => S.done[l.id]).length;
   const open = S.open === u.ui;
-  const skipped = s && S.skip.includes(u.ui);
+  const skipped = s && planSkip().includes(u.ui);
   const nxt = nextInUnit(u);
   return `<section class="unit" style="--hue:${u.hue}">
     <button class="banner" data-unit="${u.ui}" aria-expanded="${open}">
@@ -140,20 +144,21 @@ let draftDays = DEFAULT_PLAN_DAYS;
 function plural(n, word){ return `${n} ${word}${n === 1 ? "" : "s"}`; }
 function unitsOf(ids){ return [...new Set(ids.map(id => UNITS[BY_ID[id].ui].title))]; }
 
-function unitPick(u){
+function unitPick(u, skip){
   const left = u.lessons.filter(l => !S.done[l.id]).length;
-  return `<label class="upick"><input type="checkbox" data-skip="${u.ui}" ${S.skip.includes(u.ui) ? "" : "checked"}>
+  return `<label class="upick"><input type="checkbox" data-skip="${u.ui}" ${skip.includes(u.ui) ? "" : "checked"}>
     <span>${esc(u.title)}</span><small>${left ? `${left} left` : "done"}</small></label>`;
 }
 function unitsPanel(){
+  const skip = planSkip();
   const groups = L.SUBJECTS.map(([id, name]) => [name, L.unitsFor(UNITS, id)]).filter(([, us]) => us.length);
   return `<div class="panel"><h3>Units in your plan</h3>
     <p>Untick units you already know. They stay in the app but drop out of your daily count.</p>
-    ${groups.map(([name, us]) => `<h4 class="subhead">${esc(name)}</h4><div class="upicks">${us.map(unitPick).join("")}</div>`).join("")}</div>`;
+    ${groups.map(([name, us]) => `<h4 class="subhead">${esc(name)}</h4><div class="upicks">${us.map(u => unitPick(u, skip)).join("")}</div>`).join("")}</div>`;
 }
 
 function planSetupHTML(secs){
-  const left = Plan.planOrder(UNITS, S.skip).filter(id => !S.done[id]).length;
+  const left = Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length;
   const pv = Plan.preview(Math.max(left, 1), draftDays, secs);
   return `<div class="panel"><h3>Finish everything in…</h3>
     <div class="seg">${PLAN_LENGTHS.map(n => `<button data-days="${n}" aria-pressed="${draftDays===n}">${n} days</button>`).join("")}</div>
@@ -237,13 +242,15 @@ function bindPlan(s, secs){
   app.querySelectorAll("[data-days]").forEach(b => b.onclick = () => { draftDays = +b.dataset.days; render(); });
   app.querySelectorAll("[data-skip]").forEach(c => c.onchange = () => {
     const ui = +c.dataset.skip;
-    S.skip = c.checked ? S.skip.filter(x => x !== ui) : [...S.skip, ui]; save(); render();
+    if (S.plan) Object.assign(S, Plan.setUnit(S.plan, S.skip, ui, c.checked, UNITS.length));
+    else S.skip = c.checked ? S.skip.filter(x => x !== ui) : [...S.skip, ui];
+    save(); render();
   });
   app.querySelectorAll("[data-relen]").forEach(b => b.onclick = () => {
     S.plan = { ...S.plan, days: today() - S.plan.start + +b.dataset.relen }; save(); render();
     toast(`Plan now ends ${Plan.dayLabel(today() + +b.dataset.relen - 1)}.`);
   });
-  on("#startplan", () => { S.plan = { start: today(), days: draftDays, remind: DEFAULT_REMIND }; save(); render(); });
+  on("#startplan", () => { S.plan = { start: today(), days: draftDays, remind: DEFAULT_REMIND, knownUnits: UNITS.length }; save(); render(); });
   on("#endplan", () => { if (confirm("End this plan? Your finished lessons stay finished.")) { S.plan = null; save(); render(); } });
   on("#plannext", () => { const n = nextUp(); if (n) startLesson(n); });
   on("#addremind", () => downloadReminder(s, secs));

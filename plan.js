@@ -12,6 +12,26 @@ function planOrder(units, skip) {
   return units.filter((u, ui) => !skipped.has(ui)).flatMap(u => u.lessons.map(l => l.id));
 }
 
+/* Units added after a plan was made (index >= knownUnits) count as skipped until the user ticks them,
+   so new content never inflates an existing plan. */
+const UNITS_BEFORE_KNOWN = 18; // units that existed before plans tracked knownUnits
+function effectiveSkip(skip, knownUnits, unitCount) {
+  const out = new Set(skip || []);
+  for (let ui = knownUnits; ui < unitCount; ui++) out.add(ui);
+  return [...out].sort((a, b) => a - b);
+}
+/* Tick (on) or untick a unit in an active plan's unit list. New units that weren't ticked stay skipped
+   and the plan now knows every unit. Returns the new { plan, skip } without touching the inputs. */
+function setUnit(plan, skip, ui, on, unitCount) {
+  const base = effectiveSkip(skip, plan.knownUnits, unitCount).filter(x => x !== ui);
+  return { plan: { ...plan, knownUnits: unitCount }, skip: on ? base : [...base, ui].sort((a, b) => a - b) };
+}
+/* Old saved plans predate knownUnits. */
+function migratePlan(plan) {
+  if (!plan || typeof plan !== "object") return null;
+  return Number.isInteger(plan.knownUnits) ? plan : { ...plan, knownUnits: UNITS_BEFORE_KNOWN };
+}
+
 /* Median of your recent lesson times once there are enough of them, otherwise the default. */
 function lessonSecs(times) {
   if (!times || times.length < MIN_SAMPLES) return DEFAULT_LESSON_SECS;
@@ -108,6 +128,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { planOrder, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);
