@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const M = require("../merge.js");
+const St = require("../state.js");
 
 const T = 20748, NOW = 1700000000000;
 const job = (id, at, extra = {}) => ({ id, company: id.toUpperCase(), role: "", link: "", day: T, status: "applied", updatedAt: at, ...extra });
@@ -107,12 +108,13 @@ test("day counters: same day takes the max, otherwise the later day", () => {
   assert.deepEqual([m2.day, m2.dayLessons, m2.dayXp], [T, 1, 10]);
 });
 
-test("unknown future fields come from the newer side; one-sided ones are kept", () => {
+test("unknown top-level fields are dropped from both sides", () => {
   const m = sym({ future: ["old"], extra: 1, updatedAt: 5 }, { future: ["new"], other: 2, updatedAt: 9 });
-  assert.deepEqual(m.future, ["new"]);
-  assert.equal(m.extra, 1);
-  assert.equal(m.other, 2);
+  assert.equal("future" in m, false);
+  assert.equal("extra" in m, false);
+  assert.equal("other" in m, false);
   assert.equal(m.updatedAt, 9);
+  assert.ok(Object.keys(m).every(k => St.KNOWN_KEYS.includes(k)));
 });
 
 test("device-only fields stay local", () => {
@@ -206,4 +208,90 @@ test("mock history is capped at the newest 100 after a merge, the same either wa
 test("missing or malformed mock lists merge to what's valid", () => {
   assert.deepEqual(M.merge({}, {}).mock, []);
   assert.deepEqual(M.merge({ mock: "x" }, { mock: [null, 5, { id: "" }, attempt("ok", 1)] }).mock.map(x => x.id), ["ok"]);
+});
+
+/* ---------- reset ---------- */
+const studied = (at, extra = {}) => ({
+  done: { u0l0: true, u0l1: true }, doneOn: { u0l0: T - 2, u0l1: T - 1 }, xp: 30, xpLog: { dA: 30 }, streak: 4, last: T - 1,
+  miss: { u0l0q1: 2 }, srs: { u0l0: { step: 2, due: T + 3, updatedAt: at } }, times: [60, 90], day: T - 1, dayLessons: 2, dayXp: 20,
+  jobs: [job("j1", at)], goal: 3, settingsUpdatedAt: at, progressUpdatedAt: at, updatedAt: at, ...extra
+});
+
+test("a reset sticks: progress from a copy last changed before the reset is ignored", () => {
+  const remote = studied(NOW - 1000);
+  const local = St.resetProgress(studied(NOW - 1000), NOW);
+  const m = sym(local, remote);
+  assert.deepEqual(m.done, {});
+  assert.deepEqual(m.doneOn, {});
+  assert.equal(m.xp, 0);
+  assert.deepEqual(m.xpLog, {});
+  assert.deepEqual([m.streak, m.last], [0, -1]);
+  assert.deepEqual(m.miss, {});
+  assert.deepEqual(m.srs, {});
+  assert.deepEqual(m.times, []);
+  assert.deepEqual([m.day, m.dayLessons, m.dayXp], [-1, 0, 0]);
+  assert.equal(m.resetAt, NOW);
+  assert.equal(m.progressUpdatedAt, NOW);
+  // jobs and settings are unaffected
+  assert.deepEqual(m.jobs.map(j => j.id), ["j1"]);
+  assert.equal(m.goal, 3);
+  // the merged copy keeps winning against a third device that is still stale
+  const m2 = sym(studied(NOW - 500, { done: { u9l9: true } }), m);
+  assert.deepEqual(m2.done, {});
+});
+
+test("progress made after a reset is kept, on either side", () => {
+  const reset = St.resetProgress(studied(NOW - 1000), NOW);
+  const later = studied(NOW + 50, { done: { u3l0: true }, doneOn: { u3l0: T }, xpLog: { dB: 15 } });
+  const m = sym(reset, later);
+  assert.deepEqual(m.done, { u3l0: true });
+  assert.equal(m.xp, 15);
+  assert.equal(m.progressUpdatedAt, NOW + 50);
+  const after = { ...reset, done: { u1l0: true }, xpLog: { dA: 10 }, progressUpdatedAt: NOW + 10 };
+  const m2 = sym(after, later);
+  assert.deepEqual(Object.keys(m2.done).sort(), ["u1l0", "u3l0"]);
+  assert.equal(m2.xp, 25);
+});
+
+test("copies with no reset anywhere merge as before", () => {
+  const m = sym(studied(NOW - 10), { done: { u5l0: true }, xp: 7 });
+  assert.deepEqual(Object.keys(m.done).sort(), ["u0l0", "u0l1", "u5l0"]);
+  assert.equal(m.resetAt, 0);
+});
+
+/* ---------- xp per device ---------- */
+test("XP earned offline on two devices adds up", () => {
+  assert.equal(sym({ xpLog: { dA: 100 } }, { xpLog: { dB: 80 } }).xp, 180); // A earns 100, B earns 80: 180
+  const base = { [St.BASE_XP_KEY]: 500 };
+  const a = { xpLog: { ...base, dA: 100 } }, b = { xpLog: { ...base, dB: 80 } };
+  const m = sym(a, b);
+  assert.equal(m.xp, 680);
+  assert.deepEqual(m.xpLog, { [St.BASE_XP_KEY]: 500, dA: 100, dB: 80 });
+  assert.equal(sym(m, b).xp, 680); // merging again doesn't double count
+});
+
+test("old copies without xpLog count their xp once, as the shared base", () => {
+  assert.equal(sym({ xp: 100 }, { xp: 100 }).xp, 100); // two devices that already synced: 100, not 200
+  assert.equal(sym({ xpLog: { [St.BASE_XP_KEY]: 100, dA: 20 } }, { xp: 100 }).xp, 120);
+  assert.equal(sym({ xp: 9999, xpLog: { dA: 5 } }, {}).xp, 5); // xp is derived from xpLog when it exists
+});
+
+/* ---------- clock skew ---------- */
+test("timestamps far in the future are capped at now + 1 day", () => {
+  const now = NOW, cap = now + M.MAX_SKEW_MS;
+  const future = { jobs: [job("a", now * 10, { status: "offer" })], srs: { x: { step: 4, due: T, updatedAt: now * 10 } },
+    plan: plan("p1", now * 10), goal: 5, settingsUpdatedAt: now * 10, updatedAt: now * 10, progressUpdatedAt: now * 10, resetAt: now * 10 };
+  const m = M.merge({}, future, now);
+  assert.equal(m.jobs[0].updatedAt, cap);
+  assert.equal(m.srs.x.updatedAt, cap);
+  assert.equal(m.plan.updatedAt, cap);
+  assert.equal(m.settingsUpdatedAt, cap);
+  assert.equal(m.updatedAt, cap);
+  assert.equal(m.resetAt, cap);
+  // an edit made once the real clock passes the cap wins over the capped copy
+  const edit = { jobs: [job("a", cap + 1, { status: "rejected" })], goal: 1, settingsUpdatedAt: cap + 1 };
+  const m2 = M.merge(edit, m, cap + 1);
+  assert.equal(m2.jobs[0].status, "rejected");
+  assert.equal(m2.goal, 1);
+  assert.equal(M.merge({ jobs: [job("b", now - 5)] }, {}, now).jobs[0].updatedAt, now - 5); // normal stamps untouched
 });

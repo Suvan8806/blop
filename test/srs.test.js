@@ -110,3 +110,11 @@ test("without a question count a lesson needs two questions asked", () => {
   assert.equal(SRS.grade(srs, { u0l0q0: true, u0l0q1: true }, T, NOW).u0l0.step, 1);
   assert.equal(SRS.grade(srs, { u0l0q0: true }, T, NOW, () => 0).u0l0.step, 1); // a count of 0 still needs one
 });
+
+test("clean keeps only sane schedule entries", () => {
+  const c = SRS.clean({ a: { step: 99, due: 20000, updatedAt: 5 }, b: { step: -2, due: 20001 }, c: { step: 1.5, due: 1 },
+    d: { step: 1, due: 1e12 }, e: { step: 1, due: -1 }, f: null, g: 5, ["x".repeat(65)]: { step: 0, due: 1 } });
+  assert.deepEqual(c, { a: { step: SRS.LADDER.length - 1, due: 20000, updatedAt: 5 }, b: { step: 0, due: 20001, updatedAt: 0 } });
+  assert.deepEqual(SRS.clean([1]), {});
+  assert.deepEqual(SRS.clean(null), {});
+});

@@ -22,6 +22,25 @@ function migrate(srs, done, today, now) {
   return out;
 }
 
+/* Saved or synced schedule entries, kept only when they make sense: an integer step on the ladder, an integer
+   due day, a non-negative updatedAt, a short lesson id, and at most MAX_ENTRIES of them. Returns a new map. */
+const MAX_ENTRIES = 10000, MAX_ID = 64, MAX_DAY = 200000;
+function clean(srs) {
+  const out = {};
+  if (!srs || typeof srs !== "object" || Array.isArray(srs)) return out;
+  let n = 0;
+  for (const id of Object.keys(srs)) {
+    if (n >= MAX_ENTRIES) break;
+    const e = srs[id];
+    if (!id || id.length > MAX_ID || !e || typeof e !== "object" || !Number.isInteger(e.step) || !Number.isInteger(e.due)) continue;
+    if (e.due < 0 || e.due > MAX_DAY) continue;
+    out[id] = { step: Math.max(0, Math.min(LADDER.length - 1, e.step)), due: e.due,
+      updatedAt: Number.isFinite(e.updatedAt) && e.updatedAt > 0 ? e.updatedAt : 0 };
+    n++;
+  }
+  return out;
+}
+
 /* Lesson ids due on or before today, most overdue first. `valid` limits them to lessons that exist. */
 function dueIds(srs, today, valid) {
   return Object.keys(srs)
@@ -72,6 +91,6 @@ function gradeDetail(srs, firstTry, today, now, qCount) {
 }
 function grade(srs, firstTry, today, now, qCount) { return gradeDetail(srs, firstTry, today, now, qCount).srs; }
 
-const SRS = { LADDER, REVIEW_CAP, MIN_ASKED, lessonOf, enter, migrate, dueIds, pickReview, grade, gradeDetail };
+const SRS = { LADDER, REVIEW_CAP, MIN_ASKED, lessonOf, enter, migrate, clean, dueIds, pickReview, grade, gradeDetail };
 if (typeof module !== "undefined" && module.exports) module.exports = SRS; else root.SRS = SRS;
 })(typeof window !== "undefined" ? window : globalThis);

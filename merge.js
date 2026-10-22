@@ -1,13 +1,17 @@
 /* Sync merge: combines this device's saved state with the copy stored in the account, so progress made
-   on either side is kept. Pure functions, no DOM, tested in node. The rules (FEATURES.md item 1):
-   - done: union. doneOn: earliest day per lesson. xp: max. miss: max per question.
+   on either side is kept. Pure functions, no DOM, tested in node. The rules:
+   - Study progress (done, doneOn, xp, miss, srs, times, streak, day counters) from a side whose
+     progressUpdatedAt is older than the latest resetAt on either side is ignored, so a reset sticks.
+   - done: union. doneOn: earliest day per lesson. miss: max per question.
+   - xp: per device (xpLog), max per device; the total is the sum. Old data without xpLog counts as a base entry.
    - streak/last: the pair from the side with the more recent `last`.
    - srs: per lesson, newer updatedAt. jobs: per id, newer updatedAt (tombstones included).
    - mock (interview attempts): per id, newer updatedAt (tombstones included), then the newest KEEP_MOCK.
    - plan: newer updatedAt; for the same plan, targets merge per day with max.
    - times: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
    - day counters: same day -> max; otherwise the later day.
-   - anything else (fields added later): the side with the newer top-level updatedAt.
+   - top-level fields that aren't in BlopState.KNOWN_KEYS are dropped.
+   - every timestamp is capped at now + 1 day first, so a device with a clock far ahead can't win forever.
    Ties are broken by comparing the values themselves, so merge(a, b) and merge(b, a) agree, except
    that device-only fields come from `local` and jobs keep local order first. */
 (function (root) {
@@ -15,9 +19,9 @@ const St = typeof module !== "undefined" && module.exports ? require("./state.js
 const SETTINGS = St.SETTINGS_KEYS;
 const KEEP_TIMES = 20;
 const KEEP_MOCK = 100; // same cap as mock.js MAX_ATTEMPTS
+const MAX_SKEW_MS = 864e5; // timestamps more than a day ahead of this device's clock are capped
 const LOCAL_ONLY = ["open"]; // which unit is expanded on this screen
-const KNOWN = new Set(["done", "doneOn", "xp", "streak", "last", "miss", "srs", "jobs", "mock", "plan", "times",
-  "day", "dayLessons", "dayXp", "updatedAt", "settingsUpdatedAt", ...SETTINGS, ...LOCAL_ONLY]);
+const KNOWN = new Set(St.KNOWN_KEYS);
 
 const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
 const obj = v => (isObj(v) ? v : {});
@@ -127,33 +131,57 @@ function pickDay(a, b) {
   return { day: Math.max(da, db), dayLessons: num(w.dayLessons), dayXp: num(w.dayXp) };
 }
 
-/* local: this device's state. remote: the account's copy (may be missing or malformed). Returns a new object. */
-function merge(local, remote) {
-  const a = obj(local), b = obj(remote);
-  const top = newer(a, b);
+/* A copy of one side with every timestamp capped at `limit`, and only known top-level fields. */
+function capStamps(s, limit) {
+  const cap = v => (Number.isFinite(v) ? Math.min(Math.max(v, 0), limit) : 0);
+  const item = x => (isObj(x) && Number.isFinite(x.updatedAt) && x.updatedAt > limit ? { ...x, updatedAt: limit } : x);
   const out = {};
-  keys(a, b).filter(k => !KNOWN.has(k)).forEach(k => {
-    out[k] = !(k in b) ? a[k] : !(k in a) ? b[k] : top[k];
-  });
-  Object.assign(out, {
-    done: mergeDone(obj(a.done), obj(b.done)),
-    doneOn: mergeDoneOn(obj(a.doneOn), obj(b.doneOn)),
-    xp: Math.max(num(a.xp), num(b.xp)),
-    ...pickStreak(a, b),
-    miss: mergeMiss(obj(a.miss), obj(b.miss)),
-    srs: mergeByStamp(obj(a.srs), obj(b.srs)),
+  Object.keys(s).forEach(k => { if (KNOWN.has(k)) out[k] = s[k]; });
+  ["updatedAt", "settingsUpdatedAt", "resetAt", "progressUpdatedAt"].forEach(k => { if (k in out) out[k] = cap(out[k]); });
+  if (isObj(out.plan)) out.plan = item(out.plan);
+  if (isObj(out.srs)) out.srs = Object.fromEntries(Object.entries(out.srs).map(([k, v]) => [k, item(v)]));
+  ["jobs", "mock"].forEach(k => { if (Array.isArray(out[k])) out[k] = out[k].map(item); });
+  return out;
+}
+function mergeXpLog(a, b) {
+  const x = St.xpLogOf(a), y = St.xpLogOf(b), out = {};
+  keys(x, y).forEach(k => { out[k] = Math.max(num(x[k]), num(y[k])); });
+  return out;
+}
+
+/* local: this device's state. remote: the account's copy (may be missing or malformed). now: this device's
+   clock (ms). Returns a new object. */
+function merge(local, remote, now = Date.now()) {
+  const limit = (Number.isFinite(now) ? now : Date.now()) + MAX_SKEW_MS;
+  const a = capStamps(obj(local), limit), b = capStamps(obj(remote), limit);
+  const top = newer(a, b);
+  // A reset on either side wins over progress that was last changed before it.
+  const resetAt = Math.max(num(a.resetAt), num(b.resetAt));
+  const kept = [a, b].filter(s => num(s.progressUpdatedAt) >= resetAt);
+  const pa = kept.includes(a) ? a : {}, pb = kept.includes(b) ? b : {};
+  const xpLog = mergeXpLog(pa, pb);
+  const out = {
+    done: mergeDone(obj(pa.done), obj(pb.done)),
+    doneOn: mergeDoneOn(obj(pa.doneOn), obj(pb.doneOn)),
+    xpLog,
+    xp: St.sumXp(xpLog),
+    ...pickStreak(pa, pb),
+    miss: mergeMiss(obj(pa.miss), obj(pb.miss)),
+    srs: mergeByStamp(obj(pa.srs), obj(pb.srs)),
     jobs: mergeJobs(a.jobs, b.jobs),
     mock: mergeMock(a.mock, b.mock),
     plan: mergePlan(a.plan, b.plan),
-    times: mergeTimes(top === a ? a.times : b.times, top === a ? b.times : a.times),
+    times: mergeTimes(top === a ? pa.times : pb.times, top === a ? pb.times : pa.times),
     ...pickSettings(a, b),
-    ...pickDay(a, b),
+    ...pickDay(pa, pb),
+    resetAt,
+    progressUpdatedAt: Math.max(resetAt, ...kept.map(s => num(s.progressUpdatedAt))),
     updatedAt: Math.max(num(a.updatedAt), num(b.updatedAt))
-  });
+  };
   LOCAL_ONLY.forEach(k => { if (k in a) out[k] = a[k]; });
   return out;
 }
 
-const Merge = { merge, mergeJobs, mergeMock, mergePlan, mergeTimes, mergeByStamp, KEEP_TIMES, KEEP_MOCK };
+const Merge = { MAX_SKEW_MS, merge, mergeJobs, mergeMock, mergePlan, mergeTimes, mergeByStamp, KEEP_TIMES, KEEP_MOCK };
 if (typeof module !== "undefined" && module.exports) module.exports = Merge; else root.Merge = Merge;
 })(typeof window !== "undefined" ? window : globalThis);

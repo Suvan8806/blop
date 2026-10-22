@@ -119,3 +119,35 @@ test("last-synced text", () => {
   assert.equal(SL.agoText(now - 5 * 60e3, now), "5 min ago");
   assert.equal(SL.agoText(now - 3 * 3600e3, now), "3 h ago");
 });
+
+test("payloads over 1.5 MB are refused with a clear message", () => {
+  assert.equal(SL.checkPayload({ a: 1 }).ok, true);
+  const big = { mock: ["x".repeat(SL.MAX_PUSH_BYTES)] };
+  const r = SL.checkPayload(big);
+  assert.equal(r.ok, false);
+  assert.ok(r.bytes > SL.MAX_PUSH_BYTES);
+  assert.equal(SL.checkPayload({ s: "é".repeat(SL.MAX_PUSH_BYTES / 2) }).ok, false); // counted in UTF-8 bytes
+  assert.match(SL.friendlyError(new SL.PayloadTooLarge(r.bytes)), /too big to sync/);
+  assert.match(SL.friendlyError({ message: 'new row violates check constraint "progress_data_size"' }), /too big to sync/);
+});
+
+test("signing in on a device with another account's data asks first", () => {
+  const data = { done: { u0l0: true } };
+  assert.equal(SL.hasLocalData(data), true);
+  assert.equal(SL.hasLocalData({ done: {}, xp: 0, jobs: [{ id: "a", deleted: true }], mock: [], plan: { ended: true } }), false);
+  assert.equal(SL.hasLocalData({ xp: 5 }), true);
+  assert.equal(SL.hasLocalData({ jobs: [{ id: "a" }] }), true);
+  assert.equal(SL.hasLocalData({ plan: { id: "p", start: 1, days: 2 } }), true);
+  assert.equal(SL.hasLocalData(null), false);
+  assert.equal(SL.ownerCheck({ owner: "A", userId: "B", hasData: true }), "ask");
+  assert.equal(SL.ownerCheck({ owner: "A", userId: "A", hasData: true }), "adopt");
+  assert.equal(SL.ownerCheck({ owner: "A", userId: "B", hasData: false }), "adopt");
+  assert.equal(SL.ownerCheck({ owner: undefined, userId: "B", hasData: true }), "adopt"); // first sign-in merges local progress in
+});
+
+test("every supabase-js key for the storage key is recognised, nothing else", () => {
+  for (const k of ["blop-auth", "blop-auth-code-verifier", "blop-auth-user", "blop-auth-flows-code-verifier", "blop-auth-flow-abc-code-verifier"])
+    assert.equal(SL.isAuthKey(k, "blop-auth"), true, k);
+  for (const k of ["blop-authx", "blop-sync-meta", "mlepath-v1", "blop-device-id", null])
+    assert.equal(SL.isAuthKey(k, "blop-auth"), false, String(k));
+});

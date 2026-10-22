@@ -5,6 +5,7 @@ const DAY_MS = 864e5;
 const DEFAULT_LESSON_SECS = 120;
 const MIN_SAMPLES = 3;
 const HISTORY_DAYS = 7;
+const KEEP_TARGET_DAYS = 400;
 
 /* Lesson ids in the plan, in curriculum order, leaving out skipped units. units is indexed by unit index;
    a unit's optional display position `pos` (from logic.js) orders it, so the plan follows the Learn tab. */
@@ -43,19 +44,39 @@ function ended(now) { return { ended: true, updatedAt: now }; }
 function estimateStartRemaining(order, done, doneOn, start) {
   return order.filter(id => !done[id] || doneOn[id] >= start).length;
 }
+/* Bounds for a plan, which may come from another device or an old build: a start day between 2019 and 2079,
+   1..MAX_DAYS days, a short id and at most a year of recorded targets. Anything outside them would make
+   schedule() build absurdly long arrays, so such a plan is dropped. */
+const MIN_START = 18000, MAX_START = 40000, MAX_DAYS = 730, MAX_ID = 64, MAX_TARGET = 10000;
+const validPlanShape = p => Number.isInteger(p.start) && p.start >= MIN_START && p.start <= MAX_START
+  && Number.isInteger(p.days) && p.days >= 1 && p.days <= MAX_DAYS;
+const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(v)));
+function cleanTargets(t) {
+  if (!t || typeof t !== "object" || Array.isArray(t)) return {};
+  const days = Object.keys(t).filter(k => /^\d{1,6}$/.test(k) && Number.isInteger(t[k]) && t[k] >= 0 && t[k] <= MAX_TARGET)
+    .map(Number).filter(d => d >= MIN_START - KEEP_TARGET_DAYS && d <= MAX_START + MAX_DAYS)
+    .sort((a, b) => b - a).slice(0, KEEP_TARGET_DAYS);
+  return Object.fromEntries(days.sort((a, b) => a - b).map(d => [d, t[d]]));
+}
 /* Old saved plans predate knownUnits, updatedAt, id and startRemaining (core.js fills the last one in,
-   since it needs the curriculum). Returns the same object when nothing needed changing. */
-function migratePlan(plan) {
-  if (!plan || typeof plan !== "object") return null;
-  const at = Number.isFinite(plan.updatedAt) ? plan.updatedAt : 0;
-  if (plan.ended) return plan.updatedAt === at && Object.keys(plan).length === 2 ? plan : ended(at);
-  if (!Number.isInteger(plan.start) || !Number.isInteger(plan.days)) return null;
-  const fix = {};
-  if (!Number.isInteger(plan.knownUnits)) fix.knownUnits = UNITS_BEFORE_KNOWN;
-  if (plan.updatedAt !== at) fix.updatedAt = at;
-  if (typeof plan.id !== "string" || !plan.id) fix.id = `p${plan.start}`;
-  if (!plan.targets || typeof plan.targets !== "object" || Array.isArray(plan.targets)) fix.targets = {};
-  return Object.keys(fix).length ? { ...plan, ...fix } : plan;
+   since it needs the curriculum). limits: { unitCount, lessonCount } of this build, to clamp knownUnits and
+   startRemaining. A plan that can't be repaired becomes null. Returns the same object when nothing needed changing. */
+function migratePlan(plan, limits) {
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+  const at = Number.isFinite(plan.updatedAt) && plan.updatedAt > 0 ? plan.updatedAt : 0;
+  if (plan.ended) return plan.ended === true && plan.updatedAt === at && Object.keys(plan).length === 2 ? plan : ended(at);
+  if (!validPlanShape(plan)) return null;
+  const lim = limits || {};
+  const units = Number.isInteger(lim.unitCount) ? lim.unitCount : Infinity;
+  const lessons = Number.isInteger(lim.lessonCount) ? lim.lessonCount : MAX_TARGET;
+  const out = { id: typeof plan.id === "string" && plan.id ? plan.id.slice(0, MAX_ID) : `p${plan.start}`,
+    start: plan.start, days: plan.days,
+    knownUnits: Number.isInteger(plan.knownUnits) ? clampInt(plan.knownUnits, 0, Math.min(units, 10000)) : Math.min(UNITS_BEFORE_KNOWN, units),
+    targets: cleanTargets(plan.targets), updatedAt: at };
+  if (Number.isFinite(plan.startRemaining)) out.startRemaining = clampInt(plan.startRemaining, 0, lessons);
+  const same = Object.keys(out).length === Object.keys(plan).length
+    && Object.keys(out).every(k => JSON.stringify(out[k]) === JSON.stringify(plan[k]));
+  return same ? plan : out;
 }
 
 /* Median of your recent lesson times once there are enough of them, otherwise the default. */
@@ -76,6 +97,8 @@ function spread(n, k) {
 /* The core: today's target stays fixed for the whole day, everything after today is re-spread
    from what's actually left. Doing extra today lowers the future days, skipping a day raises them. */
 function schedule({ order, done, doneOn, today, start, days }) {
+  // Never build arrays sized by untrusted numbers: an out-of-range plan is an error the caller handles.
+  if (!validPlanShape({ start, days }) || !Number.isInteger(today)) throw new RangeError("Plan out of range");
   const end = start + days - 1;
   const remaining = order.filter(id => !done[id]);
   const doneToday = order.filter(id => done[id] && doneOn[id] === today).length;
@@ -134,8 +157,7 @@ function aheadBy(s, start, days, today) {
   return Math.round(expected - actual + Math.max(0, s.doneToday - s.todayTarget));
 }
 
-/* Remember each day's target so the calendar can judge past days. Keeps about a year. */
-const KEEP_TARGET_DAYS = 400;
+/* Remember each day's target so the calendar can judge past days. Keeps about a year (KEEP_TARGET_DAYS). */
 function recordTarget(targets, day, target) {
   const t = targets && typeof targets === "object" ? targets : {};
   if (t[day] === target) return t;
@@ -225,6 +247,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, projectFinish, PACE_DAYS, MIN_PACE_DAYS, LATE_FACTOR, preview, dayLabel, dateLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { MIN_START, MAX_START, MAX_DAYS, KEEP_TARGET_DAYS, isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, projectFinish, PACE_DAYS, MIN_PACE_DAYS, LATE_FACTOR, preview, dayLabel, dateLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);

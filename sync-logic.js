@@ -62,10 +62,48 @@ function cleanUrl(href) {
   return u.pathname + (q ? `?${q}` : "") + (h ? `#${h}` : "");
 }
 
+/* ---------- payload size ---------- */
+/* The server refuses rows over about 2 MB; the app refuses to push more than this, with a clear message. */
+const MAX_PUSH_BYTES = 1.5 * 1024 * 1024;
+function byteLength(text) {
+  return typeof TextEncoder === "function" ? new TextEncoder().encode(text).length : Buffer.byteLength(text, "utf8");
+}
+/* { ok, bytes } for a state about to be pushed. */
+function checkPayload(data) {
+  const bytes = byteLength(JSON.stringify(data === undefined ? null : data));
+  return { ok: bytes <= MAX_PUSH_BYTES, bytes };
+}
+class PayloadTooLarge extends Error {
+  constructor(bytes) { super("payload too large"); this.name = "PayloadTooLarge"; this.bytes = bytes; }
+}
+
+/* ---------- whose data is on this device ---------- */
+/* True when this device has anything worth keeping: lessons, XP, a plan, job applications or mock attempts. */
+function hasLocalData(s) {
+  if (!s || typeof s !== "object") return false;
+  const some = o => !!o && typeof o === "object" && Object.keys(o).length > 0;
+  const live = l => Array.isArray(l) && l.some(x => x && !x.deleted);
+  return some(s.done) || (Number.isFinite(s.xp) && s.xp > 0) || live(s.jobs) || live(s.mock)
+    || (!!s.plan && typeof s.plan === "object" && !s.plan.ended);
+}
+/* On sign-in: "adopt" (this account owns the device's data, or there's nothing to mix up) or "ask" (the data
+   here was synced with a different account, so merging it in would copy it into this one). */
+function ownerCheck({ owner, userId, hasData }) {
+  if (!owner || owner === userId || !hasData) return "adopt";
+  return "ask";
+}
+/* localStorage keys supabase-js keeps for a storageKey: the session itself, "<key>-user", and the PKCE
+   verifiers ("<key>-code-verifier", "<key>-flows-code-verifier", "<key>-flow-<id>-code-verifier"). */
+function isAuthKey(key, storageKey) {
+  return typeof key === "string" && (key === storageKey || key.startsWith(`${storageKey}-`));
+}
+
 /* Turn library and network errors into something a person can act on. */
 function friendlyError(err) {
   const msg = String((err && (err.message || err.error_description || err.msg)) || err || "").toLowerCase();
   const status = err && (err.status || err.code);
+  if (err && err.name === "PayloadTooLarge" || msg.includes("payload too large") || msg.includes("progress_data_size"))
+    return "Your saved data is too big to sync (over 1.5 MB). Delete some old mock interview attempts, then sync again.";
   if (msg.includes("load sign-in")) return "Couldn’t load sign-in. Check your connection and try again.";
   if (msg.includes("offline")) return "You’re offline. Sync will run when you’re back online.";
   if (msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("network request failed")
@@ -128,6 +166,6 @@ function agoText(ms, now) {
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const SyncLogic = { DEBOUNCE_MS, isSecretKey, isConfigured, cleanEmail, cleanCode, hasAuthParams, authError, cleanUrl, friendlyError, createScheduler, agoText };
+const SyncLogic = { DEBOUNCE_MS, MAX_PUSH_BYTES, checkPayload, PayloadTooLarge, hasLocalData, ownerCheck, isAuthKey, isSecretKey, isConfigured, cleanEmail, cleanCode, hasAuthParams, authError, cleanUrl, friendlyError, createScheduler, agoText };
 if (typeof module !== "undefined" && module.exports) module.exports = SyncLogic; else root.SyncLogic = SyncLogic;
 })(typeof window !== "undefined" ? window : globalThis);

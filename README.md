@@ -76,13 +76,18 @@ and the app never contacts Supabase.
 ### Setup
 1. Create a Supabase project at supabase.com (the free tier is enough).
 2. In Supabase → SQL Editor, paste and run `supabase/schema.sql`. It creates the `progress` table with row-level
-   security so each user can only select, insert and update their own row.
+   security so each user can only select, insert and update their own row, a check that `data` is a JSON object, and
+   a trigger that sets `updated_at` from the server clock on every write. The file is safe to re-run, so after
+   pulling a new version just run the whole file again.
 3. In Google Cloud Console → APIs & Services: set up the OAuth consent screen (External), then Credentials →
    Create credentials → OAuth client ID → **Web application**. Add this **Authorized redirect URI**:
    `https://<ref>.supabase.co/auth/v1/callback` (`<ref>` is your Supabase project ref, as in the project URL).
 4. In Supabase → Authentication → Sign In / Providers → **Google**: turn it on and paste that client ID and client secret.
 5. In Supabase → Authentication → URL Configuration: set **Site URL** to `https://blop-nu.vercel.app`, and add these
-   **Redirect URLs**: `https://blop-nu.vercel.app`, `https://blop-git-dev2-suvan8806s-projects.vercel.app` and `http://127.0.0.1:*`.
+   **Redirect URLs**: `https://blop-nu.vercel.app` and `https://blop-git-dev2-suvan8806s-projects.vercel.app`.
+   Don't add `http://127.0.0.1:*` or other local addresses to the production project: any page served on this
+   computer could then receive sign-in redirects. For local testing, create a separate dev Supabase project, add
+   `http://127.0.0.1:*` there, and point a local `config.js` at it.
 6. In Supabase → Project Settings → API (or API Keys), copy the **Project URL** and the **anon** (publishable) key into
    `config.js`. Never use the service-role or secret key; the app refuses to start sync with one.
 7. In Supabase → Authentication → Emails, edit the **Magic Link** template to show the code, for example
@@ -99,23 +104,46 @@ Then bump `CACHE` in `sw.js` and deploy. (`config.js` is fetched network-first, 
   finished lesson or review, job change, plan change or settings change, a push follows about 2 s later (changes
   are coalesced). Each push re-reads and merges first, and only writes if nobody else wrote in between.
 - Offline, pushes wait and run when the browser is back online. "Sync now" runs one immediately.
-- Signing out only forgets the session on this device; progress stays.
+- Signing out only forgets the session on this device (including any half-finished sign-in's PKCE verifier);
+  progress stays. "Sign out and clear this device" also removes progress, job applications, mock interviews and
+  drafts from this device, for a shared phone or laptop.
+- The device remembers which account its data was synced with (`blop-sync-meta` in localStorage). If a different
+  account signs in while this device has data, it asks whether to start fresh for that account (clearing the
+  device first) or sign out, so one person's data is never merged into another's account.
 - On an iPhone home-screen app, use the email code: a Google sign-in can finish in Safari instead of the app.
-- Reset on a signed-in device clears this device; lessons already synced come back on the next sync (merging never
-  drops a finished lesson).
+- Reset on a signed-in device is stamped (`resetAt`) and syncs: progress from any copy whose `progressUpdatedAt`
+  is older than the reset is ignored when merging, so lessons don't come back. A device that studied after the
+  reset but before syncing keeps all of its progress.
+- Before every push the app checks the size of the saved data and refuses to send more than 1.5 MB, with a message.
+- Merging and loading clamp everything that came from another device into sane bounds (plan length 1-730 days,
+  day numbers, counts, text lengths, list sizes) and drop unknown top-level fields, so a bad remote copy can't
+  crash the app.
 
-Merge rules: finished lessons are a union (earliest day kept), XP and missed-question counts take the max, the streak
+Merge rules: study progress from a copy last changed before the latest reset is ignored. Finished lessons are a
+union (earliest day kept), XP is counted per device (`xpLog`, merged by max per device and shown as the sum, so two
+devices earning offline add up), missed-question counts take the max, the streak
 comes from the side that studied most recently, review schedule entries, jobs and mock interview attempts (including delete tombstones) take
 the newer `updatedAt` (attempts are then capped at the newest 100), the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
 targets merged by max, lesson times are a union capped at 20, settings follow `settingsUpdatedAt`, today's counters
-take the max on the same day, and any field added later follows the newer top-level `updatedAt`.
+take the max on the same day, and top-level fields the app doesn't know are dropped. Every timestamp is capped at
+the merging device's clock plus one day, so a device whose clock is far ahead can't win every merge forever.
+
+### Security headers
+`vercel.json` sends a Content-Security-Policy on every route (scripts only from this site and jsDelivr, network
+requests only to this site, Supabase and Google Fonts, no framing, no plugins), plus `Referrer-Policy: same-origin`,
+`X-Content-Type-Options: nosniff` and a `Permissions-Policy` that turns off camera, microphone and location
+(dictation uses the phone keyboard, not the page). The app has no inline scripts or inline event handlers; keep it
+that way, or the CSP blocks them. Google sign-in is a top-level navigation to supabase.co, which the CSP allows.
+The service worker caches only the files in its `ASSETS` list and Google Fonts, never `/api/` or the Supabase API,
+and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
 
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
 - `plan.js`: pure study-plan and calendar logic. Tested in node.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
-- `state.js`: which saved fields are progress and which are settings; reset. Tested in node.
+- `state.js`: which saved fields exist, which are progress and which are settings; reset; XP per device; clamping
+  saved or synced data into bounds. Tested in node.
 - `merge.js`: merges this device's state with the account's copy. Tested in node.
 - `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
 - `config.js`: Supabase URL and anon key (empty = no sync).
@@ -209,8 +237,8 @@ signed out, the tab explains that and keeps the draft.
 
 ## Reset
 Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
-times, today's counts and the study plan. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
+times, today's counts and the study plan, on this device and (through sync) on your other devices. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js`.
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

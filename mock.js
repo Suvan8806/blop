@@ -70,7 +70,7 @@ function clampResult(raw, rubric) {
 }
 
 /* ---------- attempt history ---------- */
-const stamp = a => (Number.isFinite(a.updatedAt) ? a.updatedAt : 0);
+const stamp = a => (Number.isFinite(a.updatedAt) && a.updatedAt > 0 ? a.updatedAt : 0);
 /* Newest first; ties broken by id so every device keeps the same entries. */
 const newestFirst = (x, y) => stamp(y) - stamp(x) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
 function cap(list) { return list.slice().sort(newestFirst).slice(0, MAX_ATTEMPTS); }

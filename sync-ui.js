@@ -23,7 +23,9 @@ function signedInHTML(s){
     ${errorHTML(s.offline ? s.error : s.syncError || s.error)}
     <button class="cta ghost" id="ssync" ${s.syncing ? "disabled" : ""}>${s.syncing ? "Syncing…" : "Sync now"}</button>
     <div class="jrow"><button class="linkish" id="sout" ${s.busy ? "disabled" : ""}>Sign out</button>
-      <span class="fine">Signing out keeps your progress on this device.</span></div>`;
+      <span class="fine">Signing out keeps your progress on this device.</span></div>
+    <div class="jrow"><button class="linkish soft" id="soutclear" ${s.busy ? "disabled" : ""}>Sign out and clear this device</button>
+      <span class="fine">For a shared device: removes progress, job applications and mock interviews from this device only. Your account keeps its copy.</span></div>`;
 }
 function signedOutHTML(s){
   const busy = s.busy ? "disabled" : "";
@@ -60,6 +62,9 @@ function bind(box){
   on("#sback", "onclick", () => B.sync.back());
   on("#ssync", "onclick", () => B.sync.now());
   on("#sout", "onclick", () => B.sync.signOut());
+  on("#soutclear", "onclick", () => {
+    if (confirm("Sign out and clear this device? Progress, job applications and mock interviews are removed from this device. Your account keeps its synced copy.")) B.sync.signOutAndClear();
+  });
 }
 /* Repaint the panel in place, keeping focus on the same control when it still exists, and moving
    it to the code field when that field first appears. */

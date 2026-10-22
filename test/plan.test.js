@@ -180,8 +180,8 @@ test("unticking an old unit keeps new units skipped", () => {
 });
 
 test("old plans migrate: knownUnits 18, updatedAt 0, a stable id and empty targets", () => {
-  assert.deepEqual(Plan.migratePlan({ start: 5, days: 30 }), { start: 5, days: 30, knownUnits: 18, updatedAt: 0, id: "p5", targets: {} });
-  const p = { id: "x", start: 5, days: 30, knownUnits: 22, updatedAt: 9, targets: { 5: 2 } };
+  assert.deepEqual(Plan.migratePlan({ start: 20005, days: 30 }), { start: 20005, days: 30, knownUnits: 18, updatedAt: 0, id: "p20005", targets: {} });
+  const p = { id: "x", start: 20005, days: 30, knownUnits: 22, updatedAt: 9, targets: { 20005: 2 } };
   assert.equal(Plan.migratePlan(p), p);
   assert.equal(Plan.migratePlan(null), null);
   assert.equal(Plan.migratePlan({ days: 30 }), null);
@@ -354,4 +354,41 @@ test("dates show the year only when it isn't this year", () => {
   assert.doesNotMatch(Plan.dateLabel(day(2026, 10, 20), t), /2026/);
   assert.match(Plan.dateLabel(day(2027, 10, 20), t), /2027/);
   assert.match(Plan.dateLabel(day(2025, 0, 2), t), /2025/);
+});
+
+/* ---------- plans from another device are bounded ---------- */
+test("a synced plan with an absurd length or start is dropped instead of crashing the app", () => {
+  const base = { id: "p", start: 20700, days: 30, knownUnits: 50, startRemaining: 100, targets: {}, updatedAt: 5 };
+  for (const bad of [{ days: 3e8 }, { days: 0 }, { days: 731 }, { days: 30.5 }, { days: -3 }, { days: Infinity }, { days: "30" },
+    { start: 17999 }, { start: 40001 }, { start: 3e8 }, { start: -1 }, { start: NaN }]) {
+    assert.equal(Plan.migratePlan({ ...base, ...bad }), null, JSON.stringify(bad));
+  }
+  assert.equal(Plan.migratePlan({ ...base, days: 730 }).days, 730);
+  assert.equal(Plan.migratePlan({ ...base, days: 1 }).days, 1);
+  assert.equal(Plan.migratePlan([1, 2]), null);
+});
+
+test("plan fields are clamped: knownUnits, startRemaining, id length, targets", () => {
+  const big = Object.fromEntries(Array.from({ length: 900 }, (_, i) => [20000 + i, 3]));
+  const p = Plan.migratePlan({ id: "x".repeat(500), start: 20700, days: 30, knownUnits: 999, startRemaining: 1e9,
+    targets: { ...big, abc: 1, 20950: -2, 20951: 1.5, 20952: "4", 20953: 1e9 }, updatedAt: -5, junk: "y" }, { unitCount: 53, lessonCount: 398 });
+  assert.equal(p.id.length, 64);
+  assert.equal(p.knownUnits, 53);
+  assert.equal(p.startRemaining, 398);
+  assert.equal(p.updatedAt, 0);
+  assert.equal("junk" in p, false);
+  const days = Object.keys(p.targets).map(Number);
+  assert.equal(days.length, Plan.KEEP_TARGET_DAYS);
+  assert.equal(Math.max(...days), 20899); // newest days kept
+  assert.ok(Object.values(p.targets).every(v => v === 3));
+  assert.equal(Plan.migratePlan({ ...p, knownUnits: -4, startRemaining: -1 }, { unitCount: 53, lessonCount: 398 }).knownUnits, 0);
+  assert.equal(Plan.migratePlan({ ...p, startRemaining: -1 }).startRemaining, 0);
+  assert.equal(Plan.migratePlan({ start: 20700, days: 30 }, { unitCount: 10 }).knownUnits, 10);
+});
+
+test("a bounded plan always schedules quickly", () => {
+  assert.equal(Plan.migratePlan({ start: 20000, days: 3e8 }), null);
+  const ok = Plan.migratePlan({ start: Plan.MIN_START, days: Plan.MAX_DAYS });
+  const s = Plan.schedule({ order: ["a", "b"], done: {}, doneOn: {}, today: Plan.MIN_START, start: ok.start, days: ok.days });
+  assert.equal(s.plan.length, Plan.MAX_DAYS);
 });

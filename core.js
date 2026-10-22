@@ -15,38 +15,49 @@ const QS = Object.fromEntries(ALL.flatMap(l => l.qs.map(q => [q.id, q])));
 function today(){ const d = new Date(); return Math.floor((d - d.getTimezoneOffset()*60000) / 864e5); }
 const ST = window.BlopState;
 const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
-/* Fill defaults and upgrade old saved shapes. Also used on merged data from sync. Returns a new object. */
+/* A random id for this browser, kept in localStorage and never synced. XP earned here is counted under it. */
+const DEVICE_KEY = "blop-device-id";
+const DEVICE_ID = (() => {
+  try {
+    const v = localStorage.getItem(DEVICE_KEY);
+    if (v && /^d[0-9a-f]{16,32}$/.test(v)) return v;
+    const bytes = new Uint8Array(8);
+    (window.crypto || {}).getRandomValues ? crypto.getRandomValues(bytes) : bytes.forEach((_, i) => { bytes[i] = Math.floor(Math.random() * 256); });
+    const id = "d" + [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(DEVICE_KEY, id);
+    return id;
+  } catch (e) { return "dlocal"; }
+})();
+/* Fill defaults and upgrade old saved shapes. Also used on merged data from sync, which comes from another
+   device and may be malformed: every field is checked and kept within bounds (BlopState.clean and each
+   module's own sanitizer), and unknown fields are dropped. Returns a new object. */
 function normalize(raw){
   const src = isObj(raw) ? raw : {};
-  const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{}, remind: ST ? ST.DEFAULT_REMIND : "19:00",
-    settingsUpdatedAt:0, updatedAt:0, jobs:[], mock:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, src);
-  ["done", "doneOn", "miss", "srs"].forEach(k => { if (!isObj(st[k])) st[k] = {}; });
-  if (!Array.isArray(st.times)) st.times = [];
-  // Synced data comes from another device, so numbers shown on screen are checked to really be numbers.
-  st.skip = Array.isArray(st.skip) ? st.skip.filter(Number.isInteger) : [];
-  ["xp", "streak", "dayLessons", "dayXp", "settingsUpdatedAt", "updatedAt"].forEach(k => { if (!Number.isFinite(st[k])) st[k] = 0; });
-  ["last", "day"].forEach(k => { if (!Number.isFinite(st[k])) st[k] = -1; });
+  const st = Object.assign({ done:{}, xp:0, xpLog:{}, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
+    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{}, remind: ST.DEFAULT_REMIND,
+    settingsUpdatedAt:0, updatedAt:0, resetAt:0, progressUpdatedAt:0, jobs:[], mock:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, ST.clean(src));
+  st.skip = Array.isArray(st.skip) ? [...new Set(st.skip.filter(x => Number.isInteger(x) && x >= 0 && x < UNITS.length))].slice(0, UNITS.length) : [];
+  if (!(st.open === null || (Number.isInteger(st.open) && st.open >= -1 && st.open < UNITS.length))) st.open = null;
   if (![1, 2, 3, 5].includes(st.goal)) st.goal = 2;
-  st.srs = Object.fromEntries(Object.entries(st.srs).filter(([, e]) => isObj(e) && Number.isInteger(e.step) && Number.isFinite(e.due)));
+  st.srs = window.SRS ? SRS.clean(st.srs) : {};
   st.subject = L.validSubject(st.subject);
   // The reminder time used to live on the plan; it's a setting now.
   if (!("remind" in src) && isObj(src.plan) && typeof src.plan.remind === "string") st.remind = src.plan.remind;
-  if (ST) st.remind = ST.validTime(st.remind);
+  st.remind = ST.validTime(st.remind);
   if (window.Plan) {
-    st.plan = Plan.migratePlan(st.plan);
+    st.plan = Plan.migratePlan(st.plan, { unitCount: UNITS.length, lessonCount: ALL.length });
     if (Plan.isActive(st.plan) && !Number.isFinite(st.plan.startRemaining)) {
       const order = Plan.planOrder(UNITS, Plan.effectiveSkip(st.skip, st.plan.knownUnits, UNITS.length));
       st.plan = { ...st.plan, startRemaining: Plan.estimateStartRemaining(order, st.done, st.doneOn, st.plan.start) };
     }
-    if (st.plan && "remind" in st.plan) { const { remind, ...rest } = st.plan; st.plan = rest; }
-  }
+  } else st.plan = null;
   if (window.SRS) { // only lessons that still exist get a schedule
     const known = Object.fromEntries(Object.keys(st.done).filter(id => st.done[id] && BY_ID[id]).map(id => [id, true]));
     st.srs = SRS.migrate(st.srs, known, today(), Date.now());
   }
-  if (window.Jobs) { st.jobs = Jobs.sanitize(st.jobs); st.jobTarget = Jobs.clampTarget(st.jobTarget); }
-  st.mock = window.Mock ? Mock.sanitize(st.mock) : (Array.isArray(st.mock) ? st.mock : []);
+  st.jobs = window.Jobs ? Jobs.sanitize(st.jobs) : [];
+  st.jobTarget = window.Jobs ? Jobs.clampTarget(st.jobTarget) : 15;
+  st.mock = window.Mock ? Mock.sanitize(st.mock) : [];
   return st;
 }
 function load(){
@@ -63,14 +74,25 @@ function replaceState(next){
   Object.keys(S).forEach(k => delete S[k]);
   Object.assign(S, normalize(next));
 }
-/* Clears study progress on this device. Job applications and settings stay. */
+/* Clears study progress on this device. Job applications and settings stay. The reset is stamped (resetAt), so
+   syncing doesn't bring back progress from copies made before it. */
 function reset(){ replaceState(ST.resetProgress(S, Date.now())); commit(); }
+/* Forgets everything on this device (account switch, or "Sign out and clear this device"). */
+function wipe(){
+  replaceState({});
+  save();
+  try { localStorage.removeItem("blop-mock-drafts"); } catch (e) {}
+}
+/* Study progress changed; a sync merge compares this stamp with the latest reset. */
+function touchProgress(){ S.progressUpdatedAt = Date.now(); }
 /* Change settings (goal, jobTarget, subject, remind, skip) and stamp them for sync. */
 function setSettings(patch){ replaceState(ST.withSettings(S, patch, Date.now())); commit(); }
 function rollDay(){ if (S.day !== today()) { S.day = today(); S.dayLessons = 0; S.dayXp = 0; } }
 function award(xp, isLesson){
   rollDay();
-  S.xp += xp; S.dayXp += xp;
+  Object.assign(S, ST.addXp(S, DEVICE_ID, xp));
+  S.dayXp += xp;
+  touchProgress();
   if (isLesson) S.dayLessons++;
   const t = today();
   if (S.last !== t) { S.streak = (S.last === t - 1) ? S.streak + 1 : 1; S.last = t; }
@@ -238,9 +260,9 @@ function runSession(items, opts){
   }
   function feedback(q, right){
     if (!(q.id in first)) { first[q.id] = right; if (right) firstTry++; }
-    if (right) { if (S.miss[q.id]) { S.miss[q.id] = Math.max(0, S.miss[q.id] - 1); save(); } }
+    if (right) { if (S.miss[q.id]) { S.miss[q.id] = Math.max(0, S.miss[q.id] - 1); touchProgress(); save(); } }
     else {
-      S.miss[q.id] = (S.miss[q.id] || 0) + 1; save();
+      S.miss[q.id] = Math.min(ST.LIMITS.COUNT, (S.miss[q.id] || 0) + 1); touchProgress(); save();
       if (!retried.has(q.id)) { retried.add(q.id); queue.push({ k:"q", q, retry:true }); }
       if (navigator.vibrate) navigator.vibrate(60);
     }
@@ -284,8 +306,12 @@ function planSkip(){
 function sched(){
   if (!activePlan()) return null; // Plan is missing for one load if an old cached index.html is served
   const t = today();
-  const s = Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
-    today: t, start: S.plan.start, days: S.plan.days });
+  let s;
+  // A plan that still can't be scheduled (bad data that got past normalize) shows as no plan, never a crash.
+  try {
+    s = Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
+      today: t, start: S.plan.start, days: S.plan.days });
+  } catch (e) { return null; }
   const targets = Plan.recordTarget(S.plan.targets, t, s.todayTarget);
   // A recorded target is derived data, so it doesn't bump plan.updatedAt; sync merges targets per day.
   if (targets !== S.plan.targets) { S.plan = { ...S.plan, targets }; save(); }
@@ -318,7 +344,7 @@ function ringSVG(pct, label){
     <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
 }
 
-Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
+Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

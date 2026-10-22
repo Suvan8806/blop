@@ -59,11 +59,13 @@ function remove(jobs, id, now) { return jobs.map(j => j.id === id ? { id, delete
 function live(jobs) { return (jobs || []).filter(j => !j.deleted); }
 
 /* Saved data from older versions or another device: keep valid entries, repair what's fixable. */
+const MAX_ID = 64, MAX_JOBS = 5000;
 function sanitize(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
-  const at = j => Number.isFinite(j.updatedAt) ? j.updatedAt : 0;
-  return list.filter(j => j && typeof j === "object" && typeof j.id === "string" && j.id && (j.deleted === true || validDay(j.day)) && !seen.has(j.id) && seen.add(j.id))
+  const at = j => Number.isFinite(j.updatedAt) && j.updatedAt > 0 ? j.updatedAt : 0;
+  return list.filter(j => j && typeof j === "object" && typeof j.id === "string" && j.id && j.id.length <= MAX_ID && (j.deleted === true || validDay(j.day)) && !seen.has(j.id) && seen.add(j.id))
+    .slice(-MAX_JOBS)
     .map(j => j.deleted === true ? { id: j.id, deleted: true, updatedAt: at(j) } : ({ id: j.id, company: text(j.company, MAX_TEXT), role: text(j.role, MAX_TEXT), link: safeLink(j.link), day: j.day,
       status: validStatus(j.status) ? j.status : "applied", updatedAt: at(j) }));
 }
@@ -117,7 +119,7 @@ function dayFromISO(s) {
 }
 function isoFromDay(day) { return new Date(day * DAY_MS).toISOString().slice(0, 10); }
 
-const Jobs = { STATUSES, STATUS_IDS, DEFAULT_TARGET, MIN_TARGET, MAX_TARGET, statusName, clampTarget, safeLink, newId,
+const Jobs = { MAX_JOBS, STATUSES, STATUS_IDS, DEFAULT_TARGET, MIN_TARGET, MAX_TARGET, statusName, clampTarget, safeLink, newId,
   create, update, remove, live, sanitize, countOn, streak, weekStart, stats, counts, filter, dayFromISO, isoFromDay };
 if (typeof module !== "undefined" && module.exports) module.exports = Jobs; else root.Jobs = Jobs;
 })(typeof window !== "undefined" ? window : globalThis);

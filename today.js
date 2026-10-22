@@ -200,7 +200,11 @@ function bind(app, s, secs, render){
     render();
   });
   app.querySelectorAll("[data-relen]").forEach(b => b.onclick = () => {
-    S.plan = { ...S.plan, days: today() - S.plan.start + +b.dataset.relen, updatedAt: Date.now() }; commit(); render();
+    // A plan can't run longer than Plan.MAX_DAYS in total; a very old plan restarts from today instead.
+    const len = +b.dataset.relen, days = today() - S.plan.start + len;
+    S.plan = days <= Plan.MAX_DAYS ? { ...S.plan, days, updatedAt: Date.now() } : { ...S.plan, start: today(), days: len, targets: {},
+      startRemaining: Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length, updatedAt: Date.now() };
+    commit(); render();
     toast(`Plan now ends ${Plan.dateLabel(today() + +b.dataset.relen - 1, today())}.`);
   });
   app.querySelectorAll("[data-start]").forEach(b => b.onclick = () => {

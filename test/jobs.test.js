@@ -131,3 +131,13 @@ test("daily target is clamped to 1-100 and defaults to 15", () => {
   assert.equal(J.clampTarget(12.4), 12);
   assert.equal(J.statusName("phone"), "Phone screen");
 });
+
+test("sanitize drops over-long ids, caps the list and repairs negative stamps", () => {
+  const out = J.sanitize([{ id: "x".repeat(65), day: T }, { id: "ok", day: T, updatedAt: -4 }]);
+  assert.deepEqual(out.map(j => j.id), ["ok"]);
+  assert.equal(out[0].updatedAt, 0);
+  const many = Array.from({ length: J.MAX_JOBS + 10 }, (_, i) => ({ id: `j${i}`, day: T }));
+  const capped = J.sanitize(many);
+  assert.equal(capped.length, J.MAX_JOBS);
+  assert.equal(capped[capped.length - 1].id, `j${J.MAX_JOBS + 9}`); // newest (last logged) kept
+});
