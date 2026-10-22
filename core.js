@@ -17,9 +17,10 @@ function load(){
   let s = null;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
   const st = Object.assign({ done:{}, xp:0, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, skip:[], subject:"ml" }, s && typeof s === "object" ? s : {});
+    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{} }, s && typeof s === "object" ? s : {});
   st.subject = L.validSubject(st.subject);
   if (window.Plan) st.plan = Plan.migratePlan(st.plan);
+  if (window.SRS) st.srs = SRS.migrate(st.srs, st.done, today(), Date.now());
   return st;
 }
 const S = load(); // same object for the whole session; reset() refills it in place
@@ -94,6 +95,7 @@ function startLesson(l){
       const first = !S.done[l.id];
       S.done[l.id] = true;
       if (first) S.doneOn[l.id] = today();
+      if (window.SRS) S.srs = SRS.enter(S.srs, l.id, today(), Date.now());
       recordTime((Date.now() - startedAt) / 1000);
       const xp = (first ? 10 : 5) + (st.perfect ? 5 : 0);
       award(xp, true);
@@ -108,14 +110,37 @@ function nextUnitIn(ui){
   const i = same.findIndex(u => u.ui === ui);
   return (same[i + 1] || same[i]).ui;
 }
-function startPractice(){
+/* ---------- spaced repetition ---------- */
+const reviewable = id => !!BY_ID[id] && BY_ID[id].qs.length > 0;
+function dueReviews(){ return window.SRS ? SRS.dueIds(S.srs, today(), reviewable) : []; }
+function isDue(id){ return !!(S.srs[id] && S.srs[id].due <= today()); }
+/* Daily review: questions from due lessons, missed ones first. Each reviewed lesson moves up the
+   ladder if every one of its questions was right first try, otherwise it's due again tomorrow. */
+function startReview(){
+  const r = window.SRS ? SRS.pickReview({ srs: S.srs, today: today(), miss: S.miss, valid: reviewable,
+    qsOf: id => shuffle(BY_ID[id].qs.map(q => q.id)) }) : { qids: [] };
+  if (!r.qids.length) return startPractice("Extra practice");
+  runSession(r.qids.map(id => ({ k:"q", q: QS[id] })), {
+    kicker: "Daily review",
+    onFinish: (st) => {
+      S.srs = SRS.grade(S.srs, st.first, today(), Date.now());
+      const up = r.lessons.filter(id => S.srs[id].step > 0).length; // a reset puts a lesson back on step 0
+      const back = r.lessons.length - up;
+      const xp = 5 + (st.perfect ? 5 : 0); award(xp, false);
+      return { title: "Review complete", xp, acc: st.acc,
+        note: `${up} lesson${up === 1 ? "" : "s"} moved further out${back ? `, ${back} due again tomorrow` : ""}.` };
+    }
+  });
+}
+function startPractice(label){
+  const kicker = typeof label === "string" ? label : "Practice";
   const pool = ALL.filter(l => S.done[l.id]).flatMap(l => l.qs);
   if (!pool.length) return toast("Finish a lesson first, then practice it here.");
   const missed = shuffle(pool.filter(q => S.miss[q.id] > 0));
   const rest = shuffle(pool.filter(q => !(S.miss[q.id] > 0)));
   const pick = [...missed, ...rest].slice(0, 10);
   runSession(shuffle(pick).map(q => ({ k:"q", q })), {
-    kicker: "Practice",
+    kicker,
     onFinish: (st) => { const xp = 5 + (st.perfect ? 5 : 0); award(xp, false); return { title: "Practice complete", xp, acc: st.acc }; }
   });
 }
@@ -124,7 +149,7 @@ function startPractice(){
 const PRAISE = ["Nice!","Correct!","You got it.","Exactly.","Great job."];
 function runSession(items, opts){
   const queue = items.slice();
-  const retried = new Set(), firstSeen = new Set();
+  const retried = new Set(), first = {}; // first: question id -> right on the first try
   const qTotal = items.filter(i => i.k === "q").length;
   let idx = 0, firstTry = 0, ctl = null;
   const el = document.createElement("div");
@@ -169,7 +194,7 @@ function runSession(items, opts){
     check.onclick = () => ctl.check();
   }
   function feedback(q, right){
-    if (!firstSeen.has(q.id)) { firstSeen.add(q.id); if (right) firstTry++; }
+    if (!(q.id in first)) { first[q.id] = right; if (right) firstTry++; }
     if (right) { if (S.miss[q.id]) { S.miss[q.id] = Math.max(0, S.miss[q.id] - 1); save(); } }
     else {
       S.miss[q.id] = (S.miss[q.id] || 0) + 1; save();
@@ -187,12 +212,12 @@ function runSession(items, opts){
   }
   function finish(){
     const acc = qTotal ? Math.round(firstTry / qTotal * 100) : 100;
-    const r = opts.onFinish({ acc, perfect: qTotal > 0 && acc === 100 }); // no bonus for a lesson with no questions
+    const r = opts.onFinish({ acc, perfect: qTotal > 0 && acc === 100, first }); // no bonus for a lesson with no questions
     el.innerHTML = `<div class="s-body"><div class="finish slide">
       <div class="trophy">${I.trophy}</div><h2>${esc(r.title)}</h2>
       <div class="chips"><div class="chip"><small>XP earned</small><b>+${r.xp}</b></div>
       <div class="chip"><small>Accuracy</small><b>${r.acc}%</b></div>
-      <div class="chip"><small>Streak</small><b>${liveStreak()} 🔥</b></div></div></div></div>
+      <div class="chip"><small>Streak</small><b>${liveStreak()} 🔥</b></div></div>${r.note ? `<p class="fnote">${esc(r.note)}</p>` : ""}</div></div>
       <div class="s-foot"><div class="in"><button class="cta" id="done">Continue</button></div></div>`;
     el.querySelector("#done").onclick = close;
   }
@@ -207,5 +232,5 @@ function runSession(items, opts){
 
 Object.assign(B, { KEY, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, rollDay, award, liveStreak, recordTime,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
-  startLesson, startPractice, runSession, render: () => {} });
+  startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

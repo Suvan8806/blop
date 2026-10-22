@@ -18,7 +18,7 @@ if (!window.Blop || !window.Blop.S) {
 try { sessionStorage.removeItem("blop-stale-reload"); } catch (e) {}
 const B = window.Blop, L = B.logic;
 const { UNITS, ALL, BY_ID, QS, S, I, $, esc, save, today, rollDay, liveStreak, toast,
-  unlocked, nextInUnit, nextOverall, unitLabel, startLesson, startPractice } = B;
+  unlocked, nextInUnit, nextOverall, unitLabel, startLesson, startPractice, startReview, dueReviews, isDue } = B;
 const app = $("#app");
 
 /* ---------- plan helpers ---------- */
@@ -76,9 +76,10 @@ function lessonRow(l, nxt, todaySet){
   const cls = isDone ? "done" : isCur ? "cur" : lock ? "locked" : "";
   const ic = isDone ? I.check : isCur ? I.play : lock ? I.lock : I.book;
   const inToday = !isDone && todaySet.has(l.id) ? " · in today’s plan" : "";
+  const badge = isDone && isDue(l.id) ? ` <span class="badge" title="Due for review">review</span>` : "";
   const sub = (isDone ? "Done · tap to redo" : isCur ? `Up next · ${l.qs.length} questions` : lock ? "Finish the lesson before this to unlock" : "Ready") + inToday;
   return `<li><button class="lesson ${cls}" data-lesson="${l.id}"><span class="node">${ic}</span>
-    <span><div class="lt">${esc(l.title)}</div><div class="ls">${sub}</div></span></button></li>`;
+    <span><div class="lt">${esc(l.title)}${badge}</div><div class="ls">${sub}</div></span></button></li>`;
 }
 function unitHTML(u, s, todaySet){
   const done = u.lessons.filter(l => S.done[l.id]).length;
@@ -143,13 +144,22 @@ function renderDaily(){
   </div></div>`;
   if (nxt) h += `<div class="panel"><h3>Continue your track</h3><p>${unitLabel(nxt.ui)} · ${esc(nxt.title)}</p>
     <button class="cta" id="cont">Start lesson</button></div>`;
-  h += `<div class="panel"><h3>Daily review</h3><p>${doneCount
-      ? `10 quick questions from lessons you’ve finished${weak ? `, starting with ${weak} you’ve missed before` : ""}.`
-      : "Finish your first lesson, then come back here to review it."}</p>
-    <button class="cta ghost" id="rev" ${doneCount ? "" : "disabled"}>Start review</button></div></div>`;
+  h += reviewPanel(doneCount, weak) + `</div>`;
   app.innerHTML = h;
   if (nxt) $("#cont").onclick = () => startLesson(nxt);
-  if (doneCount) $("#rev").onclick = startPractice;
+  if (doneCount) $("#rev").onclick = startReview;
+}
+
+function reviewPanel(doneCount, weak){
+  const due = dueReviews().length;
+  if (!doneCount) return `<div class="panel"><h3>Daily review</h3><p>Finish your first lesson, then come back here to review it.</p>
+    <button class="cta ghost" disabled>Start review</button></div>`;
+  if (due) return `<div class="panel"><h3>Reviews due <span class="count">${due}</span></h3>
+    <p>${plural(due, "lesson")} due today. Up to 15 questions${weak ? ", starting with ones you’ve missed before" : ""}.
+    Get a lesson’s questions all right and it comes back later; miss one and it’s back tomorrow.</p>
+    <button class="cta" id="rev">Start review</button></div>`;
+  return `<div class="panel"><h3>No reviews due</h3><p>You’re up to date. Extra practice mixes questions from lessons you’ve finished${weak ? `, starting with ${weak} you’ve missed` : ""}.</p>
+    <button class="cta ghost" id="rev">Extra practice</button></div>`;
 }
 
 /* ---------- plan ---------- */
