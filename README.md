@@ -65,7 +65,50 @@ match uses numbers for terms and letters for definitions, and Enter checks or co
 
 After editing, bump `CACHE` in `sw.js` (e.g. "blop-v6") so phones pick up the change, and add any new file to its `ASSETS` list.
 
-Progress is stored in the browser on each device.
+Progress is stored in the browser on each device. Signing in (optional, see below) syncs it across devices.
+
+## Login and sync (optional)
+Sign in on the Profile tab with Google or a 6-digit email code, and progress, streak, reviews, the study plan,
+job applications and settings stay the same on every device. localStorage stays the source the app reads from,
+so everything works offline and without an account. With `config.js` empty, Profile says "Sync isn't set up yet"
+and the app never contacts Supabase.
+
+### Setup
+1. Create a Supabase project at supabase.com (the free tier is enough).
+2. In Supabase → SQL Editor, paste and run `supabase/schema.sql`. It creates the `progress` table with row-level
+   security so each user can only select, insert and update their own row.
+3. In Google Cloud Console → APIs & Services: set up the OAuth consent screen (External), then Credentials →
+   Create credentials → OAuth client ID → **Web application**. Add this **Authorized redirect URI**:
+   `https://<ref>.supabase.co/auth/v1/callback` (`<ref>` is your Supabase project ref, as in the project URL).
+4. In Supabase → Authentication → Sign In / Providers → **Google**: turn it on and paste that client ID and client secret.
+5. In Supabase → Authentication → URL Configuration: set **Site URL** to `https://blop-nu.vercel.app`, and add these
+   **Redirect URLs**: `https://blop-nu.vercel.app`, `https://blop-git-dev2-suvan8806s-projects.vercel.app` and `http://127.0.0.1:*`.
+6. In Supabase → Project Settings → API (or API Keys), copy the **Project URL** and the **anon** (publishable) key into
+   `config.js`. Never use the service-role or secret key; the app refuses to start sync with one.
+7. In Supabase → Authentication → Emails, edit the **Magic Link** template to show the code, for example
+   `<p>Your blop code: <b>{{ .Token }}</b></p>`. Do the same in **Confirm signup**, which a brand-new account can
+   receive instead. Without `{{ .Token }}` the email only has a link, which won't sign in the home-screen app.
+
+Then bump `CACHE` in `sw.js` and deploy. (`config.js` is fetched network-first, so a new config applies on the next load anyway.)
+
+### How it works
+- `config.js` holds the public URL and anon key. Row-level security is what protects the data.
+- supabase-js is loaded from a pinned jsDelivr URL with a subresource-integrity hash (`sync.js`), only when config is
+  filled in and you sign in or already have a session. The service worker never caches the CDN or the API.
+- On app open and right after sign-in: pull the account's row, merge (`merge.js`), save locally, push. After every
+  finished lesson or review, job change, plan change or settings change, a push follows about 2 s later (changes
+  are coalesced). Each push re-reads and merges first, and only writes if nobody else wrote in between.
+- Offline, pushes wait and run when the browser is back online. "Sync now" runs one immediately.
+- Signing out only forgets the session on this device; progress stays.
+- On an iPhone home-screen app, use the email code: a Google sign-in can finish in Safari instead of the app.
+- Reset on a signed-in device clears this device; lessons already synced come back on the next sync (merging never
+  drops a finished lesson).
+
+Merge rules: finished lessons are a union (earliest day kept), XP and missed-question counts take the max, the streak
+comes from the side that studied most recently, review schedule entries and jobs (including delete tombstones) take
+the newer `updatedAt`, the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
+targets merged by max, lesson times are a union capped at 20, settings follow `settingsUpdatedAt`, today's counters
+take the max on the same day, and any field added later follows the newer top-level `updatedAt`.
 
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
@@ -73,6 +116,11 @@ Progress is stored in the browser on each device.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
 - `state.js`: which saved fields are progress and which are settings; reset. Tested in node.
+- `merge.js`: merges this device's state with the account's copy. Tested in node.
+- `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
+- `config.js`: Supabase URL and anon key (empty = no sync).
+- `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
+- `supabase/schema.sql`: the `progress` table and its row-level security policies.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
@@ -106,5 +154,5 @@ Profile → "Reset study progress" clears finished lessons, XP, the study streak
 times, today's counts and the study plan. It keeps job applications and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js`.
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

@@ -23,7 +23,12 @@ function normalize(raw){
     settingsUpdatedAt:0, updatedAt:0, jobs:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, src);
   ["done", "doneOn", "miss", "srs"].forEach(k => { if (!isObj(st[k])) st[k] = {}; });
   if (!Array.isArray(st.times)) st.times = [];
-  if (!Array.isArray(st.skip)) st.skip = [];
+  // Synced data comes from another device, so numbers shown on screen are checked to really be numbers.
+  st.skip = Array.isArray(st.skip) ? st.skip.filter(Number.isInteger) : [];
+  ["xp", "streak", "dayLessons", "dayXp", "settingsUpdatedAt", "updatedAt"].forEach(k => { if (!Number.isFinite(st[k])) st[k] = 0; });
+  ["last", "day"].forEach(k => { if (!Number.isFinite(st[k])) st[k] = -1; });
+  if (![1, 2, 3, 5].includes(st.goal)) st.goal = 2;
+  st.srs = Object.fromEntries(Object.entries(st.srs).filter(([, e]) => isObj(e) && Number.isInteger(e.step) && Number.isFinite(e.due)));
   st.subject = L.validSubject(st.subject);
   // The reminder time used to live on the plan; it's a setting now.
   if (!("remind" in src) && isObj(src.plan) && typeof src.plan.remind === "string") st.remind = src.plan.remind;

@@ -100,6 +100,7 @@ function renderProfile(){
     <div class="panel"><div class="big">${doneCount}<span style="font-size:1rem;color:var(--soft)">/${ALL.length}</span></div><div class="k">lessons done</div></div>
     <div class="panel"><div class="big">${unitsDone}<span style="font-size:1rem;color:var(--soft)">/${UNITS.length}</span></div><div class="k">units finished</div></div>
   </div>
+  ${B.syncPanelHTML ? B.syncPanelHTML() : ""}
   ${dayGoal().plan
     ? `<div class="panel"><h3>Daily goal</h3><p style="margin:0">Your study plan sets this each day. Change it in the Today tab.</p></div>`
     : `<div class="panel"><h3>Daily goal</h3><p>Lessons per day. Each takes about two minutes.</p>
@@ -110,9 +111,11 @@ function renderProfile(){
     <p style="margin:10px 0 0">Your progress is saved on this device.</p></div>
   <div class="panel"><h3>Reset study progress</h3><p>Clears finished lessons, XP, your study streak, review schedule,
     missed-question history, lesson times, today’s counts and your study plan on this device.
-    Keeps your job applications, daily goal, job target, subject and reminder time.</p>
+    Keeps your job applications, daily goal, job target, subject and reminder time.${B.sync && B.sync.signedIn()
+      ? " You’re signed in, so lessons already synced to your account come back on the next sync." : ""}</p>
     <button class="linkish" id="reset">Reset study progress</button></div></div>`;
   app.querySelectorAll("[data-goal]").forEach(b => b.onclick = () => { setSettings({ goal: +b.dataset.goal }); render(); });
+  if (B.bindSyncPanel) B.bindSyncPanel(app);
   $("#reset").onclick = () => {
     if (confirm("Reset your study progress? Job applications and settings stay. This can’t be undone.")) { B.reset(); render(); }
   };

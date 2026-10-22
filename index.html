@@ -291,6 +291,20 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .jacts button{font-size:.85rem;font-weight:700;color:var(--soft);padding:6px 0}
 .jacts button[data-del]{color:var(--red)}
 .empty{margin:12px 0 0!important}
+/* sync */
+.cta.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--surface);color:var(--ink);border:2px solid var(--line);box-shadow:0 4px 0 var(--line)}
+.cta.gbtn:active{box-shadow:0 0 0 var(--line)}
+.cta.gbtn svg{width:22px;height:22px;flex:none}
+.cta.gbtn[disabled]{opacity:.6}
+.or{display:flex;align-items:center;gap:10px;margin:18px 0 0;color:var(--soft);font-size:.85rem}
+.or::before,.or::after{content:"";flex:1;height:2px;background:var(--line)}
+.srow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}
+.srow:first-of-type{border-top:0}
+.srow span{color:var(--soft)}
+.srow b{text-align:right;overflow-wrap:anywhere;min-width:0}
+#syncbox .cta.ghost{margin-top:12px}
+.serr{color:var(--red-d)!important;font-weight:700;font-size:.9rem;margin:10px 0 0!important}
+@media (prefers-color-scheme: dark){ .serr{color:var(--red)!important} }
 @media (prefers-color-scheme: dark){ .pace.ahead b{color:var(--green)} .pace.behind b{color:var(--red)} .cd.st-missed .mk{color:var(--red)} .cd.st-done{color:#0F1513} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
@@ -308,11 +322,16 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/srs.js"></script>
 <script src="/jobs.js"></script>
 <script src="/state.js"></script>
+<script src="/merge.js"></script>
+<script src="/sync-logic.js"></script>
 <script src="/logic.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
 <script src="/today.js"></script>
 <script src="/jobs-ui.js"></script>
+<script src="/config.js"></script>
+<script src="/sync.js"></script>
+<script src="/sync-ui.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
