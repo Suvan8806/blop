@@ -25,3 +25,11 @@ The correct answer is always listed first; the app shuffles options.
 After editing, bump `CACHE` in `sw.js` (e.g. "blop-v2") so phones pick up the change.
 
 Progress is stored in the browser on each device.
+
+## Study plan
+The Plan tab spreads the lessons you have left over 14, 30, 45 or 60 days. Today's target is fixed
+for the day; every day after it is recalculated from what's actually left, so extra lessons make
+later days lighter and missed days make them heavier. Untick units you already know to drop them
+from the count. "Add to calendar" downloads an .ics file with a daily alert until the plan ends.
+
+Plan logic lives in `plan.js`. Run its tests with `node --test test/plan.test.js`.

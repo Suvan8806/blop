@@ -1,0 +1,101 @@
+/* Study plan: spreads the lessons you still need across the days left before your deadline.
+   Pure functions, no DOM. Days are local day numbers (see today() in app.js). */
+(function (root) {
+const DAY_MS = 864e5;
+const DEFAULT_LESSON_SECS = 120;
+const MIN_SAMPLES = 3;
+
+/* Lesson ids in the plan, in curriculum order, leaving out skipped units. */
+function planOrder(units, skip) {
+  const skipped = new Set(skip || []);
+  return units.filter((u, ui) => !skipped.has(ui)).flatMap(u => u.lessons.map(l => l.id));
+}
+
+/* Median of your recent lesson times once there are enough of them, otherwise the default. */
+function lessonSecs(times) {
+  if (!times || times.length < MIN_SAMPLES) return DEFAULT_LESSON_SECS;
+  const s = times.slice().sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+function minutesFor(count, secs) { return count ? Math.max(1, Math.round(count * secs / 60)) : 0; }
+
+/* Split n items over k days as evenly as possible, bigger days first. */
+function spread(n, k) {
+  if (k <= 0) return [];
+  const base = Math.floor(n / k), extra = n % k;
+  return Array.from({ length: k }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/* The core: today's target stays fixed for the whole day, everything after today is re-spread
+   from what's actually left. Doing extra today lowers the future days, skipping a day raises them. */
+function schedule({ order, done, doneOn, today, start, days }) {
+  const end = start + days - 1;
+  const remaining = order.filter(id => !done[id]);
+  const doneToday = order.filter(id => done[id] && doneOn[id] === today).length;
+  const overdue = today > end;
+  const daysLeft = overdue ? 1 : end - today + 1;
+  const todayTarget = Math.ceil((remaining.length + doneToday) / daysLeft);
+  const todayLeft = Math.min(remaining.length, Math.max(0, todayTarget - doneToday));
+  const counts = [todayLeft, ...spread(remaining.length - todayLeft, daysLeft - 1)];
+
+  const plan = [];
+  let cursor = 0;
+  counts.forEach((n, i) => {
+    plan.push({ day: today + i, ids: remaining.slice(cursor, cursor + n) });
+    cursor += n;
+  });
+
+  const history = [];
+  for (let d = start; d < today; d++) {
+    history.push({ day: d, did: order.filter(id => done[id] && doneOn[id] === d).length });
+  }
+
+  const doneInPlan = order.length - remaining.length;
+  const sinceStart = order.filter(id => done[id] && doneOn[id] >= start).length;
+  const elapsed = Math.max(1, today - start + 1);
+  const pace = sinceStart / elapsed;
+  const finishDay = !remaining.length ? today
+    : pace > 0 ? today + Math.ceil(remaining.length / pace) - 1 : null;
+
+  return { end, overdue, daysLeft, todayTarget, doneToday, todayLeft, plan, history,
+           total: order.length, doneInPlan, remaining: remaining.length, pace, finishDay };
+}
+
+/* Preview before a plan starts. */
+function preview(total, days, secs) {
+  const perDay = Math.ceil(total / days);
+  return { perDay, minutes: minutesFor(perDay, secs) };
+}
+
+function dayDate(day) { return new Date(day * DAY_MS); } // read it with getUTC* to get the local date
+function dayLabel(day, opts) {
+  return dayDate(day).toLocaleDateString(undefined, Object.assign({ timeZone: "UTC" }, opts || { weekday: "short", month: "short", day: "numeric" }));
+}
+function ymd(day) {
+  const d = dayDate(day), p = n => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+}
+
+/* A calendar file with one repeating daily event and an alert, from fromDay through endDay. */
+function reminderICS({ fromDay, endDay, time, minutes, url }) {
+  const [hh, mm] = time.split(":");
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  return [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//blop//study plan//EN", "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:blop-plan-${fromDay}-${endDay}@blop`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${ymd(fromDay)}T${hh}${mm}00`,
+    `DURATION:PT${Math.max(5, minutes)}M`,
+    `RRULE:FREQ=DAILY;UNTIL=${ymd(endDay)}T235959`,
+    "SUMMARY:blop: today's lessons",
+    `DESCRIPTION:Open blop to see how many lessons today's plan has. ${url}`,
+    `URL:${url}`,
+    "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Time for today's blop lessons", "TRIGGER:PT0M", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR", ""
+  ].join("\r\n");
+}
+
+const Plan = { planOrder, lessonSecs, minutesFor, spread, schedule, preview, dayLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
+})(typeof window !== "undefined" ? window : globalThis);

@@ -1,6 +1,6 @@
 // Offline support: serve cached files instantly, refresh them in the background.
-const CACHE = "blop-v1";
-const ASSETS = ["/", "/index.html", "/app.js", "/content.js", "/manifest.webmanifest",
+const CACHE = "blop-v2";
+const ASSETS = ["/", "/index.html", "/app.js", "/plan.js", "/content.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
