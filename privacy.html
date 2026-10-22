@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · blop</title>
+<meta name="description" content="How blop handles your data.">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<main>
+<a class="back" href="/">← Back to blop</a>
+<h1>Privacy Policy</h1>
+<p class="date">Effective October 22, 2026</p>
+
+<div class="card">
+  <p><strong>The short version:</strong> blop works without an account and keeps your progress on your device.
+  If you choose to sign in, your progress syncs through our database so it follows you between devices.
+  We don’t sell your data, show ads, or use tracking or analytics cookies.</p>
+</div>
+
+<p>This policy explains what blop (“we”, “us”), the study app at <a href="https://bloplearn.space">bloplearn.space</a>,
+collects, why, who it’s shared with, and the choices you have.</p>
+
+<h2>1. Data stored only on your device</h2>
+<p>Without an account, everything stays in your browser’s local storage: finished lessons, XP, streaks, review schedule,
+study plan, settings, job applications you log, mock interview drafts and results. We can’t see any of it.
+Clearing your browser data or using “Reset study progress” removes it.</p>
+
+<h2>2. Data we collect if you sign in</h2>
+<p>Signing in is optional. If you sign in with Google or with an email code, we receive:</p>
+<ul>
+  <li><strong>Account details:</strong> your email address and an account ID. With Google sign-in, Google also shares your name and profile picture, which we don’t use or display.</li>
+  <li><strong>Synced app data:</strong> the same data listed in section 1, so it can sync across your devices. This includes any company names, job titles and links you enter in the Jobs tab, and the answers you write in mock interviews.</li>
+  <li><strong>Usage counts:</strong> how many mock interview answers you’ve had graded each day, used to enforce the daily limit.</li>
+  <li><strong>Reminder settings:</strong> if you turn on reminders, your reminder time, time zone and a push subscription address for your device.</li>
+</ul>
+
+<h2>3. How we use it</h2>
+<ul>
+  <li>To sync your progress between your devices.</li>
+  <li>To grade mock interview answers you submit.</li>
+  <li>To send the daily reminders you turn on. A reminder is only sent if you haven’t finished that day’s goal, and its text is based on your synced progress.</li>
+  <li>To prevent abuse, for example the limit of 20 graded answers per day.</li>
+</ul>
+<p>We don’t use your data for advertising, and we don’t sell it or share it for anyone else’s marketing.</p>
+
+<h2>4. Services that process data for us</h2>
+<div class="table-wrap"><table>
+  <tr><th>Service</th><th>What it receives</th><th>Why</th></tr>
+  <tr><td>Vercel</td><td>Standard web request data such as IP address and browser type</td><td>Hosts the app and its server functions</td></tr>
+  <tr><td>Supabase</td><td>Your account details and synced app data</td><td>Sign-in and database</td></tr>
+  <tr><td>Google (sign-in)</td><td>Your sign-in request, if you choose “Continue with Google”</td><td>Authentication</td></tr>
+  <tr><td>Groq</td><td>The mock interview question and your answer, without your name or email</td><td>Grading the answer with an AI model</td></tr>
+  <tr><td>Google Gemini API</td><td>The same as Groq, only when Groq is unavailable</td><td>Backup grader</td></tr>
+  <tr><td>Your browser’s push service (Google, Apple, Mozilla or Microsoft)</td><td>The reminder message</td><td>Delivering notifications</td></tr>
+  <tr><td>Google Fonts and jsDelivr</td><td>Standard request data such as IP address</td><td>Loading the app’s fonts and the sign-in library</td></tr>
+</table></div>
+<p><strong>About mock interview answers:</strong> when Groq is unavailable, answers go to Google’s Gemini API on its free tier. Under Google’s terms,
+content sent through the free tier may be used to improve Google’s products and may be reviewed by people.
+Don’t put personal or confidential information in mock interview answers.</p>
+
+<h2>5. Cookies and tracking</h2>
+<p>blop doesn’t use advertising, analytics or tracking cookies. It uses your browser’s local storage to save your progress and,
+if you sign in, to keep you signed in. An offline cache (service worker) stores the app’s own files so it works without a connection.</p>
+
+<h2>6. How long we keep data</h2>
+<p>Synced data is kept until you delete it or ask us to delete your account. Daily grading counts are small records kept for abuse prevention.
+Reminder subscriptions are removed when you turn reminders off, when you choose “Sign out and clear this device”, or when your browser reports them as expired.</p>
+
+<h2>7. Your choices and rights</h2>
+<ul>
+  <li><strong>Use it without an account:</strong> nothing leaves your device except what’s needed to load the app.</li>
+  <li><strong>Turn things off:</strong> reminders can be switched off in Profile, and notifications can be blocked in your browser settings.</li>
+  <li><strong>Delete your data:</strong> email us (section 10) to delete your account and all synced data. We’ll do so within 30 days.</li>
+  <li><strong>Access or correct it:</strong> you can see and edit your data in the app, or ask us for a copy.</li>
+</ul>
+<p>Depending on where you live (for example the EU, UK or California), you may have further rights, such as to object to processing
+or to complain to a data protection authority. Contact us and we’ll help.</p>
+
+<h2>8. Security</h2>
+<p>Data is sent over HTTPS. Database rules only let each signed-in user read and write their own data, and API keys stay on our servers.
+No system is perfectly secure, so please don’t store anything in blop that you couldn’t afford to have exposed.</p>
+
+<h2>9. Children</h2>
+<p>blop is meant for people preparing for technical jobs and isn’t directed at children under 13 (or under 16 where local law requires).
+We don’t knowingly collect data from them. If you think a child has given us data, contact us and we’ll delete it.</p>
+
+<h2>10. Changes and contact</h2>
+<p>If we change this policy, we’ll update the date above. Significant changes will also be noted in the app.</p>
+<p>Questions or deletion requests: <a href="mailto:CONTACT_EMAIL">CONTACT_EMAIL</a></p>
+
+<footer><a href="/terms.html">Terms of Service</a> · <a href="/">blop</a></footer>
+</main>
+</body>
+</html>

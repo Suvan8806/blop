@@ -125,7 +125,8 @@ function renderProfile(){
     missed-question history, lesson times, today’s counts and your study plan on this device.
     Keeps your job applications, mock interviews, daily goal, job target, subject and reminder time.${B.sync && B.sync.signedIn()
       ? " You’re signed in, so the reset also applies to your other devices when they next sync." : ""}</p>
-    <button class="linkish" id="reset">Reset study progress</button></div></div>`;
+    <button class="linkish" id="reset">Reset study progress</button></div>
+  <div class="panel"><h3>About</h3><p style="margin:0"><a href="/privacy.html">Privacy Policy</a> · <a href="/terms.html">Terms of Service</a></p></div></div>`;
   app.querySelectorAll("[data-goal]").forEach(b => b.onclick = () => { setSettings({ goal: +b.dataset.goal }); render(); });
   if (B.bindSyncPanel) B.bindSyncPanel(app);
   if (B.bindRemindPanel) B.bindRemindPanel(app);

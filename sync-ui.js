@@ -43,7 +43,8 @@ function signedOutHTML(s){
     <div class="or"><span>or get a 6-digit code by email</span></div>
     ${form}
     <div id="serr">${errorHTML(s.error)}</div>
-    <p class="fine" style="margin-top:12px!important">On an iPhone home-screen app, the email code is the most reliable option: Google sign-in can finish in Safari instead of the app.</p>`;
+    <p class="fine" style="margin-top:12px!important">On an iPhone home-screen app, the email code is the most reliable option: Google sign-in can finish in Safari instead of the app.</p>
+    <p class="fine">By signing in you agree to the <a href="/terms.html">Terms of Service</a> and <a href="/privacy.html">Privacy Policy</a>.</p>`;
 }
 function innerHTML(){
   const sy = B.sync, s = sy.state();

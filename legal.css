@@ -1,0 +1,26 @@
+/* Shared styles for privacy.html and terms.html. Colors match index.html. */
+:root{
+  --bg:#F2F5F3; --surface:#FFFFFF; --ink:#16211C; --soft:#5C6A63; --line:#D6DED9; --green:#1F9D61;
+  font-family:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ color-scheme:dark; --bg:#0F1513; --surface:#19211E; --ink:#E8EFEB; --soft:#9AA9A2; --line:#2C3833; --green:#2FBF7B; }
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+main{max-width:720px;margin:0 auto;padding:28px 16px 64px;line-height:1.65}
+.back{display:inline-block;margin-bottom:18px;color:var(--green);font-weight:700;text-decoration:none}
+h1{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.date{color:var(--soft);margin:0 0 24px}
+h2{font-size:1.15rem;font-weight:800;margin:30px 0 8px}
+p,li{color:var(--ink)}
+ul{padding-left:22px}
+li{margin:4px 0}
+a{color:var(--green)}
+.card{background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:16px 18px;margin:16px 0}
+.card p{margin:0}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+th,td{text-align:left;vertical-align:top;padding:8px 6px;border-top:1px solid var(--line)}
+th{font-weight:700}
+footer{margin-top:40px;color:var(--soft);font-size:.9rem}
