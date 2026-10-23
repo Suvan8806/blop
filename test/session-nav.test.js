@@ -57,3 +57,14 @@ test("a question id maps to its lesson id", () => {
   assert.equal(N.lessonOf("u3l2q5"), "u3l2");
   assert.equal(N.lessonOf("u12l0q10"), "u12l0");
 });
+
+test("shownText collapses prose, keeps code lines, drops empty and repeated pieces", () => {
+  const t = N.shownText([
+    { text: "def f(x):\n    return x  \n\n", code: true },
+    { text: "  What does   f(2)\n return? " },
+    { text: "" }, { text: "True" }, { text: "False" }, { text: "True" }, null
+  ]);
+  assert.equal(t, "def f(x):\n    return x\nWhat does f(2) return?\nTrue\nFalse");
+  assert.equal(N.shownText([]), "");
+  assert.equal(N.shownText(undefined), "");
+});

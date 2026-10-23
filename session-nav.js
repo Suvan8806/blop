@@ -23,6 +23,18 @@ const NavLogic = {
     if (!e || inField || e.ctrlKey || e.metaKey || e.shiftKey) return null;
     return e.key === "ArrowLeft" ? "back" : e.key === "ArrowRight" ? "forward" : null;
   },
+  /* The report's shown text from the pieces read off the screen: whitespace runs collapsed (code keeps its lines),
+     empty and repeated pieces dropped, in screen order. parts: [{ text, code }]. */
+  shownText(parts) {
+    const seen = new Set(), out = [];
+    for (const p of parts || []) {
+      const t = p && p.code
+        ? String(p.text || "").split("\n").map(l => l.replace(/\s+$/, "")).join("\n").replace(/^\n+|\n+$/g, "")
+        : String((p && p.text) || "").replace(/\s+/g, " ").trim();
+      if (t && !seen.has(t)) { seen.add(t); out.push(t); }
+    }
+    return out.join("\n");
+  },
   /* "u3l2q5" -> "u3l2" (the lesson a question belongs to). */
   lessonOf: qid => String(qid).replace(/q\d+$/, "")
 };
@@ -75,6 +87,22 @@ function sheet(host, { label, html, focus }) {
   return close;
 }
 
+/* What a question step shows, as text for a report: its code, the prompt, then the choices, cards and code of
+   the answer area. Key hints, marks and line numbers are left out; a dropdown blank reads as ____. */
+const CODE_SEL = ".qcode, .codelines";
+const SHOWN = ":scope > .qcode, .prompt, .qa .qcode, .qa .codelines, .qa .opt, .qa .chipb, .qa .card-t, .qa .cmp-h, .qa .cmp-s > p";
+function questionText(body) {
+  if (!body) return "";
+  const parts = [...body.querySelectorAll(SHOWN)].map(n => {
+    const c = n.cloneNode(true);
+    c.querySelectorAll(".k, .tick, .ln, .fix, .sr-only").forEach(x => x.remove());
+    c.querySelectorAll("select").forEach(x => x.replaceWith("____"));
+    const text = n.matches(".codelines") ? [...c.querySelectorAll(".cl")].map(l => l.textContent).join("\n") : c.textContent;
+    return { text, code: n.matches(CODE_SEL) };
+  });
+  return NavLogic.shownText(parts);
+}
+
 function lessonSheet(host, l) {
   if (!l) return;
   sheet(host, { label: l.title, focus: ".nsheet-body",
@@ -117,8 +145,11 @@ function create(el) {
   function record() {
     const body = $(".s-body"), foot = $(".s-foot");
     if (!cur || !body) return;
-    body.querySelectorAll("input, textarea").forEach(i => {
-      if (i.tagName === "TEXTAREA") i.textContent = i.value; else i.setAttribute("value", i.value);
+    body.querySelectorAll("input, textarea, select").forEach(i => {
+      if (i.tagName === "TEXTAREA") i.textContent = i.value;
+      else if (i.tagName === "SELECT") [...i.options].forEach(o => o.toggleAttribute("selected", o.selected));
+      else if (i.type === "checkbox" || i.type === "radio") i.toggleAttribute("checked", i.checked);
+      else i.setAttribute("value", i.value);
     });
     const fb = foot && foot.querySelector(".fb");
     const tone = foot && foot.classList.contains("good") ? "good" : foot && foot.classList.contains("bad") ? "bad" : "";
@@ -131,7 +162,7 @@ function create(el) {
       <div class="s-foot ${r.tone}"><div class="in">${r.fb}<button class="cta ghost" id="nlive">Back to current</button></div></div>`;
     const [body, foot] = wrap.children;
     body.querySelectorAll(".qa").forEach(q => { q.inert = true; });
-    body.querySelectorAll(".qa button, .qa input, .qa textarea").forEach(x => { x.disabled = true; });
+    body.querySelectorAll(".qa button, .qa input, .qa textarea, .qa select").forEach(x => { x.disabled = true; });
     lessonLink(body, r.item);
     foot.querySelector("#nlive").onclick = () => go(NavLogic.live(s), "#nback");
     return [body, foot];
@@ -157,7 +188,7 @@ function create(el) {
   }
   function key(e) {
     if (!$("#nback")) return false; // the finish screen
-    const inField = !!(e.target && e.target.closest && e.target.closest(FIELD));
+    const inField = !!(e.target && ((B.isTyping && B.isTyping(e.target)) || (e.target.closest && e.target.closest(FIELD))));
     const a = NavLogic.keyAction(e, inField);
     if (a === "back" && NavLogic.canBack(s)) { e.preventDefault(); go(NavLogic.back(s), "#nback"); return true; }
     if (a === "forward" && NavLogic.canForward(s)) { e.preventDefault(); go(NavLogic.forward(s), "#nfwd"); return true; }
@@ -171,10 +202,7 @@ function create(el) {
     const it = viewed(), body = $(".s-body");
     if (!it || !B.report) return;
     const isQ = it.k === "q";
-    const text = isQ
-      ? [body && body.querySelector(".prompt"), ...(body ? body.querySelectorAll(".qa .opt") : [])]
-        .filter(Boolean).map(n => (n.classList.contains("opt") ? n.lastElementChild || n : n).textContent.replace(/\s+/g, " ").trim()).join("\n")
-      : it.l.title;
+    const text = isQ ? questionText(body) : it.l.title;
     B.report.open(el, { lessonId: isQ ? NavLogic.lessonOf(it.q.id) : it.l.id, questionId: isQ ? it.q.id : "teach",
       shownText: text.slice(0, MAX_SHOWN) });
   }
