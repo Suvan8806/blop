@@ -9,7 +9,8 @@ if (!window.Blop || !window.Blop.S || !LL || !root) return;
 const B = window.Blop, L = B.logic;
 const { esc, I } = B;
 
-/* Where "Start learning" goes. A later onboarding step can replace this; it defaults to the dashboard. */
+/* Where "Start learning" (and a sign-in from the sheet, with {viaSignIn: true}) goes. focus-ui.js sets it to open
+   the paths picker or the dashboard; this fallback opens the Learn tab. */
 if (typeof B.afterLanding !== "function") B.afterLanding = () => { if (B.goTab) B.goTab("learn"); };
 
 if (!LL.early) { root.remove(); return; }
@@ -240,8 +241,9 @@ function closeSignIn(){
   if (opener && document.contains(opener)) opener.focus();
 }
 document.addEventListener("keydown", e => { if (e.key === "Escape" && sheet) { e.preventDefault(); closeSignIn(); } });
-/* Signed in from the sheet (email code; Google returns through a redirect, which skips the landing): go to the app. */
-if (B.sync && B.sync.onChange) B.sync.onChange(s => { if (s.user && sheet) { closeSignIn(); finish(); if (B.goTab) B.goTab("learn"); } });
+/* Signed in from the sheet (email code; Google returns through a redirect, which skips the landing): go to the app,
+   which waits for the account's first sync before choosing the picker or the dashboard (focus-ui.js). */
+if (B.sync && B.sync.onChange) B.sync.onChange(s => { if (s.user && sheet) { closeSignIn(); finish(); B.afterLanding({ viaSignIn: true }); } });
 
 /* ---------- leaving the landing ---------- */
 function setFlag(){ try { localStorage.setItem(LL.FLAG_KEY, "1"); } catch (e) {} }

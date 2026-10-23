@@ -93,3 +93,31 @@ test("subject counts ignore unknown subjects and bad input", () => {
   assert.deepEqual(LL.subjectCounts(null, subs), { ml: { units: 0, lessons: 0, questions: 0 }, sd: { units: 0, lessons: 0, questions: 0 } });
   assert.deepEqual(LL.totals({}), { units: 0, lessons: 0, questions: 0 });
 });
+
+test("after the landing: no focus opens the picker, any focus goes to the dashboard", () => {
+  const fresh = { ...NEW.state, focus: null };
+  assert.equal(LL.afterLandingStep(fresh), "picker");
+  assert.equal(LL.afterLandingStep({ ...NEW.state }), "picker"); // focus missing (older saved state)
+  assert.equal(LL.afterLandingStep(undefined), "picker");
+  assert.equal(LL.afterLandingStep({ ...fresh, focus: { goals: ["cnn"], known: [], updatedAt: 1 } }), "dashboard");
+  // A skipped focus ({goals: []}) means "don't ask again".
+  assert.equal(LL.afterLandingStep({ ...fresh, focus: { goals: [], known: [], updatedAt: 1 } }), "dashboard");
+  assert.equal(LL.afterLandingStep({ ...fresh, focus: { goals: [] } }, { viaSignIn: true }), "dashboard");
+});
+
+test("after the landing: Start learning opens the picker even with progress, if no focus was picked", () => {
+  const s = { ...NEW.state, focus: null, done: { u0l0: true }, plan: { start: 1, days: 30 } };
+  assert.equal(LL.afterLandingStep(s), "picker");
+  assert.equal(LL.afterLandingStep(s, { viaSignIn: false }), "picker");
+});
+
+test("after signing in from the landing: the picker only when the synced state has no focus and no progress", () => {
+  const empty = { ...NEW.state, focus: null };
+  assert.equal(LL.afterLandingStep(empty, { viaSignIn: true }), "picker");
+  assert.equal(LL.afterLandingStep({ ...empty, done: { u0l0: true } }, { viaSignIn: true }), "dashboard");
+  assert.equal(LL.afterLandingStep({ ...empty, xp: 5 }, { viaSignIn: true }), "dashboard");
+  assert.equal(LL.afterLandingStep({ ...empty, plan: { start: 1, days: 30 } }, { viaSignIn: true }), "dashboard");
+  assert.equal(LL.afterLandingStep({ ...empty, jobs: [{ id: "j1" }] }, { viaSignIn: true }), "dashboard");
+  // Tombstones and an ended plan are not progress.
+  assert.equal(LL.afterLandingStep({ ...empty, jobs: [{ id: "j1", deleted: true }], plan: { ended: true } }, { viaSignIn: true }), "picker");
+});

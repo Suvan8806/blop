@@ -171,8 +171,43 @@ function close(){
   document.removeEventListener("keydown", onKey);
   B.render();
 }
-/* Called on every render: open on first run, and close a first-run picker if a sync brought progress or a focus in. */
+/* ---------- after the landing (landing.js calls B.afterLanding) ---------- */
+const SYNC_WAIT_MS = 10000;
+let holding = false; // signed in from the landing: no picker until the account's first sync has settled
+const landingVisible = () => !!(B.landing && B.landing.visible());
+/* The dashboard (Today), with the picker over it when LandingLogic.afterLandingStep says so. */
+function afterLandingGo(viaSignIn){
+  const LL = window.LandingLogic;
+  const step = LL ? LL.afterLandingStep(S, { viaSignIn }) : needsOnboarding() ? "picker" : "dashboard";
+  if (B.goTab) B.goTab("today"); // on first run this render already opens the picker
+  if (step === "picker" && !el) open({ auto: needsOnboarding() });
+}
+/* Wait for the sync that follows sign-in (or its error, a sign-out, or a timeout), then decide. */
+function afterSignInSync(){
+  const sync = B.sync;
+  if (!sync || !sync.onChange || !sync.state) return afterLandingGo(true);
+  const started = Date.now();
+  let settled = false, off = null, timer = null;
+  const done = () => {
+    if (settled) return;
+    settled = true; holding = false;
+    if (off) off();
+    clearTimeout(timer);
+    afterLandingGo(true);
+  };
+  const check = s => { if (!s.user || s.syncError || (!s.syncing && s.lastSynced >= started)) done(); };
+  holding = true;
+  if (B.goTab) B.goTab("today");
+  off = sync.onChange(check);
+  timer = setTimeout(done, SYNC_WAIT_MS);
+  check(sync.state());
+}
+B.afterLanding = opts => opts && opts.viaSignIn ? afterSignInSync() : afterLandingGo(false);
+
+/* Called on every render: open on first run, and close a first-run picker if a sync brought progress or a focus in.
+   Never under the landing (it opens after "Start learning"), nor while a landing sign-in waits for its first sync. */
 function maybeOnboard(){
+  if (holding || landingVisible()) return;
   if (!el && needsOnboarding() && !document.querySelector(".session")) open({ auto: true });
   else if (el && auto && !needsOnboarding()) close();
 }

@@ -37,6 +37,17 @@ function shouldShowLanding({ state, url, standalone, flag, signedIn } = {}) {
   return !hasProgress(state);
 }
 
+/* Where to go after the landing: "picker" (the "What do you want to learn?" onboarding) or "dashboard".
+   A focus that was ever picked or skipped (anything but null/undefined) always means the dashboard. "Start
+   learning" otherwise opens the picker; after signing in (once the account has synced) the picker only opens
+   when the synced state also has no progress, so a returning user lands on their dashboard. */
+function afterLandingStep(state, { viaSignIn = false } = {}) {
+  const focus = isObj(state) ? state.focus : null;
+  if (focus !== null && focus !== undefined) return "dashboard";
+  if (viaSignIn && hasProgress(state)) return "dashboard";
+  return "picker";
+}
+
 /* The address without the landing's own parameters (welcome, source=pwa), as a path for history.replaceState.
    Everything else (?tab=, sign-in parameters, the hash) is left for the code that reads it. */
 function cleanUrl(url) {
@@ -67,7 +78,7 @@ function totals(counts) {
   { units: 0, lessons: 0, questions: 0 });
 }
 
-const LandingLogic = { FLAG_KEY, hasProgress, shouldShowLanding, cleanUrl, subjectCounts, totals };
+const LandingLogic = { FLAG_KEY, hasProgress, shouldShowLanding, afterLandingStep, cleanUrl, subjectCounts, totals };
 if (typeof module !== "undefined" && module.exports) module.exports = LandingLogic; else root.LandingLogic = LandingLogic;
 
 /* In the browser this file loads in <head>, so the decision is made before anything paints: html.lp-on shows

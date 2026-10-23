@@ -189,9 +189,13 @@ redirects, the service worker and the installed app keep working: `landing-logic
 - Shown when this device has no progress, no session and no `blop-seen-landing` flag in localStorage, or for `/?welcome`
   (Profile → About blop). Never on a sign-in redirect (`?code=`, `#access_token=`), and never in the installed app
   (the manifest's `start_url` is `/?source=pwa`; `id` stays `/` so existing installs keep their identity).
-- "Start learning, no account needed" sets the flag and calls `Blop.afterLanding()`, which opens the Learn tab unless a
-  later script replaces it. "Sign in" opens the Profile sync panel (`sync-ui.js`) in a sheet; a successful email-code
-  sign-in goes to the app, and a Google sign-in returns through the redirect, which skips the landing.
+- "Start learning, no account needed" sets the flag and calls `Blop.afterLanding()`. `focus-ui.js` sets it: with no
+  focus yet it opens the "What do you want to learn?" picker over the Today tab, otherwise it opens Today
+  (`LandingLogic.afterLandingStep`, tested in node). The picker never auto-opens under the landing.
+- "Sign in" opens the Profile sync panel (`sync-ui.js`) in a sheet. A successful email-code sign-in goes to Today, waits
+  for the account's first sync (up to 10 s), then opens the picker only if the synced state has no focus and no
+  progress. A Google sign-in returns through the redirect, which skips the landing.
+- `blop-seen-landing` only means the landing was dismissed; whether onboarding is needed comes from the focus and progress.
 - `index.html` keeps a short static intro inside `#landing` for crawlers, and a `<noscript>` note.
 
 ## Study plan
