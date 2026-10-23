@@ -3,8 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>blop</title>
-<meta name="description" content="Bite-sized lessons for ML engineering and system design interviews.">
+<title>blop · Bite-sized ML, coding and system design interview prep</title>
+<meta name="description" content="Two-minute lessons for ML engineering, LeetCode patterns and system design interviews, with a daily study plan, spaced reviews and AI-graded mock interviews. Free, works offline, no account needed.">
+<link rel="canonical" href="https://bloplearn.space/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="blop">
+<meta property="og:url" content="https://bloplearn.space/">
+<meta property="og:title" content="blop · Bite-sized interview prep for ML, coding and system design">
+<meta property="og:description" content="Two-minute lessons, a daily study plan, spaced reviews and AI-graded mock interviews. Works offline, no account needed.">
+<meta property="og:image" content="https://bloplearn.space/icons/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="The blop app icon">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="blop · Bite-sized interview prep for ML, coding and system design">
+<meta name="twitter:description" content="Two-minute lessons, a daily study plan, spaced reviews and AI-graded mock interviews. Works offline, no account needed.">
+<meta name="twitter:image" content="https://bloplearn.space/icons/icon-512.png">
 <meta name="theme-color" content="#F2F5F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F1513" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
@@ -412,8 +426,18 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .nudge .linkish{display:block;width:100%;text-align:center;margin-top:6px}
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
+<link rel="stylesheet" href="/landing.css">
+<!-- Decides before first paint whether the landing shows (sets html.lp-on); see landing-logic.js. -->
+<script src="/landing-logic.js"></script>
 </head>
 <body>
+<!-- The landing (landing.js fills this in for new visitors, or removes it). This intro is the crawlable fallback. -->
+<div id="landing" class="lp"><div class="lp-static">
+  <h1>blop: bite-sized interview prep for ML engineering, coding patterns and system design</h1>
+  <p>Two-minute lessons with quick questions, a daily study plan, spaced-repetition reviews, AI-graded mock interviews
+  and a job application tracker. Free, works offline and installs to your home screen. No account needed.</p>
+</div></div>
+<noscript><div class="lp-static"><h1>blop</h1><p>Bite-sized lessons for ML engineering, coding patterns and system design interviews. blop needs JavaScript: turn it on and reload this page.</p></div></noscript>
 <div id="app"></div>
 <nav id="tabs" aria-label="Sections"></nav>
 <!-- Content: units are only ever appended, in this order (unit ids come from array order). -->
@@ -443,6 +467,7 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/sync-ui.js"></script>
 <script src="/push-ui.js"></script>
 <script src="/mock-ui.js"></script>
+<script src="/landing.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
