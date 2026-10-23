@@ -118,6 +118,17 @@ test("no plan: today's lessons against the daily goal, and the live streak", () 
   assert.equal(C.goalStatus({ goal: 99 }, DAY, UNITS).goal, 2);
 });
 
+test("active plan with a learning focus: the target covers only the path", () => {
+  const plan = { id: "p", start: DAY, days: 10, knownUnits: UNITS.length, targets: {}, updatedAt: 1 };
+  const focus = { goals: ["cnn"], known: ["Python Refresher"], updatedAt: 1 };
+  const order = require("../paths.js").focusOrder(UNITS, focus);
+  const n = order.reduce((a, ui) => a + UNITS[ui].lessons.length, 0);
+  assert.equal(C.goalStatus({ plan, focus, skip: [] }, DAY, UNITS).goal, Math.ceil(n / 10));
+  // A junk focus falls back to the plan's own unit list.
+  const all = require("../plan.js").planOrder(UNITS, []).length;
+  assert.equal(C.goalStatus({ plan, focus: { goals: "x" }, skip: [] }, DAY, UNITS).goal, Math.ceil(all / 10));
+});
+
 test("active plan: today's plan target and lessons done today, like the Today tab", () => {
   const done = Object.fromEntries(ids(2).map(id => [id, true]));
   const doneOn = Object.fromEntries(ids(2).map(id => [id, DAY]));
