@@ -134,3 +134,45 @@ create index if not exists push_subs_user_id_idx on public.push_subs (user_id);
 
 alter table public.push_subs enable row level security;
 revoke all on public.push_subs from anon, authenticated;
+
+-- ============================================================================================================
+-- Content problem reports ("Report a problem" in a lesson). Safe to re-run.
+-- /api/report inserts rows with the service-role key; the developer reads them with scripts/reports.mjs.
+-- RLS is on with NO policies, so the anon key and signed-in users can't read or write this table at all.
+-- user_id is set only when the reporter was signed in. reporter_hash is a salted SHA-256 of the IP (never the raw IP),
+-- used for the daily limit on anonymous reports.
+-- ============================================================================================================
+
+create table if not exists public.content_reports (
+  id            bigserial primary key,
+  created_at    timestamptz not null default now(),
+  user_id       uuid null references auth.users on delete set null,
+  reporter_hash text,
+  lesson_id     text not null,
+  question_id   text not null,
+  reason        text not null,
+  note          text not null default '',
+  shown_text    text,
+  app_version   text,
+  status        text not null default 'open'
+);
+
+alter table public.content_reports drop constraint if exists content_reports_reason;
+alter table public.content_reports add constraint content_reports_reason check (reason in ('wrong', 'unclear', 'typo', 'other'));
+alter table public.content_reports drop constraint if exists content_reports_note_len;
+alter table public.content_reports add constraint content_reports_note_len check (length(note) <= 500);
+alter table public.content_reports drop constraint if exists content_reports_ids;
+alter table public.content_reports add constraint content_reports_ids check (
+  lesson_id ~ '^u[0-9]{1,3}l[0-9]{1,3}$' and (question_id = 'teach' or question_id ~ '^u[0-9]{1,3}l[0-9]{1,3}q[0-9]{1,4}$'));
+alter table public.content_reports drop constraint if exists content_reports_sizes;
+alter table public.content_reports add constraint content_reports_sizes check (
+  length(coalesce(shown_text, '')) <= 2000 and length(coalesce(app_version, '')) <= 32 and length(coalesce(reporter_hash, '')) <= 64);
+alter table public.content_reports drop constraint if exists content_reports_status;
+alter table public.content_reports add constraint content_reports_status check (status in ('open', 'fixed', 'wontfix'));
+
+create index if not exists content_reports_reporter_idx on public.content_reports (reporter_hash, created_at);
+create index if not exists content_reports_user_idx on public.content_reports (user_id, created_at);
+create index if not exists content_reports_status_idx on public.content_reports (status, created_at);
+
+alter table public.content_reports enable row level security;
+revoke all on public.content_reports from anon, authenticated;
