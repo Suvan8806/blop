@@ -3,8 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>blop</title>
-<meta name="description" content="Bite-sized lessons for ML engineering and system design interviews.">
+<title>blop · Bite-sized ML, coding and system design interview prep</title>
+<meta name="description" content="Two-minute lessons for ML engineering, LeetCode patterns and system design interviews, with a daily study plan, spaced reviews and AI-graded mock interviews. Free, works offline, no account needed.">
+<link rel="canonical" href="https://bloplearn.space/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="blop">
+<meta property="og:url" content="https://bloplearn.space/">
+<meta property="og:title" content="blop · Bite-sized interview prep for ML, coding and system design">
+<meta property="og:description" content="Two-minute lessons, a daily study plan, spaced reviews and AI-graded mock interviews. Works offline, no account needed.">
+<meta property="og:image" content="https://bloplearn.space/icons/icon-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta property="og:image:alt" content="The blop app icon">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="blop · Bite-sized interview prep for ML, coding and system design">
+<meta name="twitter:description" content="Two-minute lessons, a daily study plan, spaced reviews and AI-graded mock interviews. Works offline, no account needed.">
+<meta name="twitter:image" content="https://bloplearn.space/icons/icon-512.png">
 <meta name="theme-color" content="#F2F5F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F1513" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
@@ -484,10 +498,84 @@ button.cl:hover{background:rgba(255,255,255,.06)}
 .mres ul,.mres ol{margin:0;padding-left:20px;line-height:1.5;font-size:.94rem;overflow-wrap:anywhere}
 .mres li + li{margin-top:4px}
 @media (prefers-color-scheme: dark){ .mtimer b.up{color:var(--red)} }
+/* learning focus and paths */
+.onb{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.onb .s-top button{font-size:1.9rem;line-height:1;font-weight:700}
+.onb h2{outline:none}
+.fsub{color:var(--soft);line-height:1.5;margin:0 0 10px}
+.onb .s-foot .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+.gcard{position:relative;display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px 14px 12px;border-radius:16px;background:var(--surface);
+  border:2px solid var(--line);box-shadow:0 3px 0 var(--line);transition:transform .06s}
+.gcard:active{transform:translateY(2px)}
+.gcard b{font-size:.98rem;line-height:1.25;padding-right:26px}
+.gcard span{font-size:.82rem;color:var(--soft);line-height:1.35}
+.gcard small{font-size:.75rem;font-weight:700;color:var(--soft);margin-top:auto;padding-top:4px}
+.gcard .gtick{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:#fff}
+.gcard .gtick svg{width:14px;height:14px}
+.gcard[aria-pressed="true"]{border-color:var(--green);box-shadow:0 3px 0 var(--green-d);background:var(--green-bg)}
+.gcard[aria-pressed="true"] .gtick{background:var(--green);border-color:var(--green)}
+.psteps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}
+.pstep{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:var(--surface);cursor:pointer}
+.pstep input{width:22px;height:22px;accent-color:var(--green);flex:none;margin:0}
+.pstep .pnum{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--hue);color:#fff;font-weight:800;font-size:.85rem}
+.pstep .ptxt{display:grid;gap:2px;min-width:0}
+.pstep .ptxt b{font-size:.95rem;line-height:1.25;overflow-wrap:anywhere}
+.pstep .ptxt small{font-size:.8rem;color:var(--soft)}
+.pstep.off{opacity:.6;border-style:dashed}
+.pstep.off .ptxt b{text-decoration:line-through}
+.gtag{display:inline-block;padding:0 7px;border-radius:999px;background:var(--violet);color:#fff;font-weight:700;font-size:.7rem}
+.ppath .jbar span{background:var(--green)}
+.ppath .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+.unit.here{box-shadow:0 0 0 3px var(--hue)}
+.unit.later .banner{filter:saturate(.45);opacity:.8}
+.ustate svg{width:13px;height:13px;vertical-align:-1px}
+.nudge{border-color:var(--violet);background:color-mix(in srgb,var(--violet) 8%,var(--surface))}
+.nudge .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+/* session navigation, Show lesson, report (session-nav.js, report-ui.js) */
+.s-top{gap:6px}
+.s-top .pbar{margin:0 6px}
+.s-top .nflag{order:1}
+.s-top button[hidden]{display:none}
+.s-top button[disabled]{opacity:.35;cursor:default}
+.ltime{margin:-10px 0 14px;color:var(--soft);font-size:.9rem;font-weight:500}
+.nlesson{display:inline-block;margin:0 0 4px;padding:6px 0;font-size:.88rem;font-weight:700;color:var(--violet);text-decoration:underline;text-underline-offset:3px}
+.nrev-note{display:inline-block;margin:10px 0 0;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--soft);font-size:.8rem;font-weight:700}
+.nrev .qa{pointer-events:none}
+.nsheet{position:fixed;inset:0;z-index:25;background:rgba(10,16,13,.5);display:flex;align-items:flex-end;justify-content:center}
+.nsheet-in{background:var(--surface);color:var(--ink);width:100%;max-width:620px;max-height:85vh;overflow-y:auto;border-radius:22px 22px 0 0;
+  padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));animation:up .2s ease-out}
+.nsheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.nsheet-h h2{margin:0;font-size:1.15rem;line-height:1.3}
+.nx{flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;color:var(--soft)}
+.nx svg{width:22px;height:22px}
+.nsheet-body:focus{outline:none}
+.nsheet-body:focus-visible{outline:3px solid var(--violet);outline-offset:2px;border-radius:8px}
+.nsub{margin:4px 0 12px;color:var(--soft)}
+.nchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.nchip{border:2px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:700;font-size:.92rem;background:var(--surface)}
+.nchip[aria-pressed="true"]{border-color:var(--violet);background:color-mix(in srgb,var(--violet) 14%,var(--surface))}
+.nlabel{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
+#nnote{display:block;width:100%;font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:10px 12px;resize:vertical;min-height:76px}
+#nnote:focus-visible{outline:3px solid var(--violet);outline-offset:1px}
+.ncount{text-align:right;font-size:.78rem;color:var(--soft);margin:4px 0 10px}
+.nerr{margin:0 0 12px;color:var(--red-d);font-weight:500;line-height:1.45}
+.nerr a{color:var(--violet);font-weight:700}
+@media (prefers-color-scheme: dark){ .nerr{color:var(--red)} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
+<link rel="stylesheet" href="/landing.css">
+<!-- Decides before first paint whether the landing shows (sets html.lp-on); see landing-logic.js. -->
+<script src="/landing-logic.js"></script>
 </head>
 <body>
+<!-- The landing (landing.js fills this in for new visitors, or removes it). This intro is the crawlable fallback. -->
+<div id="landing" class="lp"><div class="lp-static">
+  <h1>blop: bite-sized interview prep for ML engineering, coding patterns and system design</h1>
+  <p>Two-minute lessons with quick questions, a daily study plan, spaced-repetition reviews, AI-graded mock interviews
+  and a job application tracker. Free, works offline and installs to your home screen. No account needed.</p>
+</div></div>
+<noscript><div class="lp-static"><h1>blop</h1><p>Bite-sized lessons for ML engineering, coding patterns and system design interviews. blop needs JavaScript: turn it on and reload this page.</p></div></noscript>
 <div id="app"></div>
 <nav id="tabs" aria-label="Sections"></nav>
 <!-- Content: units are only ever appended, in this order (unit ids come from array order). -->
@@ -507,17 +595,23 @@ button.cl:hover{background:rgba(255,255,255,.06)}
 <script src="/sync-logic.js"></script>
 <script src="/push-logic.js"></script>
 <script src="/logic.js"></script>
+<script src="/paths.js"></script>
+<script src="/estimate.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
 <script src="/qtypes-input.js"></script>
 <script src="/qtypes-tap.js"></script>
+<script src="/session-nav.js"></script>
+<script src="/report-ui.js"></script>
 <script src="/today.js"></script>
+<script src="/focus-ui.js"></script>
 <script src="/jobs-ui.js"></script>
 <script src="/config.js"></script>
 <script src="/sync.js"></script>
 <script src="/sync-ui.js"></script>
 <script src="/push-ui.js"></script>
 <script src="/mock-ui.js"></script>
+<script src="/landing.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

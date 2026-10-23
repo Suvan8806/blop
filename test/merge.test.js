@@ -295,3 +295,13 @@ test("timestamps far in the future are capped at now + 1 day", () => {
   assert.equal(m2.goal, 1);
   assert.equal(M.merge({ jobs: [job("b", now - 5)] }, {}, now).jobs[0].updatedAt, now - 5); // normal stamps untouched
 });
+
+test("focus: newer updatedAt wins as one piece, null never wins, future stamps are capped", () => {
+  const f = (goals, at, known = []) => ({ goals, known, updatedAt: at });
+  assert.deepEqual(sym({ focus: f(["cnn"], 5) }, { focus: f(["rag"], 9, ["Start Here"]) }).focus, f(["rag"], 9, ["Start Here"]));
+  assert.deepEqual(sym({ focus: f(["cnn"], 5) }, { focus: null }).focus, f(["cnn"], 5));
+  assert.deepEqual(sym({ focus: f([], 7) }, { focus: f(["cnn"], 5) }).focus, f([], 7)); // a later "no focus" wins
+  assert.equal(M.merge({}, {}).focus, null);
+  const ahead = M.merge({ focus: f(["cnn"], NOW) }, { focus: f(["dp"], NOW + 50 * 864e5) }, NOW);
+  assert.equal(ahead.focus.updatedAt, NOW + M.MAX_SKEW_MS);
+});

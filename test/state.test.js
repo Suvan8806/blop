@@ -98,3 +98,16 @@ test("XP is a per-device counter; the total is the sum", () => {
   assert.deepEqual(St.xpLogOf({ xp: 0 }), {});
   assert.deepEqual(St.xpLogOf({ xpLog: { a: -5, b: 2.4, c: "x" } }), { a: 0, b: 2 });
 });
+
+test("focus is a known field; clean checks its shape and resetProgress keeps it", () => {
+  assert.ok(St.KNOWN_KEYS.includes("focus"));
+  assert.deepEqual(St.clean({ focus: { goals: ["cnn", "cnn", 3, "x".repeat(200)], known: ["Start Here"], updatedAt: 4, extra: 1 } }).focus,
+    { goals: ["cnn"], known: ["Start Here"], updatedAt: 4 });
+  assert.equal(St.clean({ focus: [1] }).focus, null);
+  assert.equal("focus" in St.clean({}), false);
+  const many = Array.from({ length: 300 }, (_, i) => `t${i}`);
+  const c = St.clean({ focus: { goals: many, known: many, updatedAt: -1 } }).focus;
+  assert.deepEqual([c.goals.length, c.known.length, c.updatedAt], [St.LIMITS.FOCUS_GOALS, St.LIMITS.FOCUS_KNOWN, 0]);
+  const f = { goals: ["rag"], known: [], updatedAt: 2 };
+  assert.deepEqual(St.resetProgress({ ...full(), focus: f }, 1000).focus, f);
+});

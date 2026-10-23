@@ -8,9 +8,15 @@ const HISTORY_DAYS = 7;
 const KEEP_TARGET_DAYS = 400;
 
 /* Lesson ids in the plan, in curriculum order, leaving out skipped units. units is indexed by unit index;
-   a unit's optional display position `pos` (from logic.js) orders it, so the plan follows the Learn tab. */
-function planOrder(units, skip) {
+   a unit's optional display position `pos` (from logic.js) orders it, so the plan follows the Learn tab.
+   unitOrder (optional): unit indices in the order to study them (a learning path from paths.js); only those
+   units are planned, in that order. */
+function planOrder(units, skip, unitOrder) {
   const skipped = new Set(skip || []);
+  if (Array.isArray(unitOrder)) {
+    const seen = new Set();
+    return unitOrder.filter(ui => units[ui] && !skipped.has(ui) && !seen.has(ui) && seen.add(ui)).flatMap(ui => units[ui].lessons.map(l => l.id));
+  }
   return units.map((u, ui) => [u, ui]).filter(([, ui]) => !skipped.has(ui))
     .sort(([a, ai], [b, bi]) => (a.pos ?? ai) - (b.pos ?? bi))
     .flatMap(([u]) => u.lessons.map(l => l.id));

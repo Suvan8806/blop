@@ -8,15 +8,19 @@ const MATCH_PAIRS = 4;            // keyboard letters A-D and digits 1-4 cover a
 const ORDER_MIN = 2, ORDER_MAX = 6;
 // Units that already shipped in content.js but belong to another subject. Tagged here so content.js stays untouched.
 const UNIT_SUBJECT = { 16: "sd", 17: "sd" };
-/* Display order only: a unit listed here is shown right after the base unit with that title (same subject),
-   after any earlier units placed there. Unit indices and ids never change. Unlisted units keep index order. */
+/* Display order only: a unit listed here is shown right after the unit with that title (same subject), after any
+   earlier units placed there and everything placed after those. Chains are allowed (a placed unit can be a base),
+   so the order can follow the prerequisite graph in paths.js: Math Primer before Foundations, the backprop,
+   optimizer and regularization deep dives after Architectures. Unit indices and ids never change. Unlisted units
+   keep index order. test/content.test.js checks the order is a valid topological order of Paths.PREREQS. */
 const UNIT_AFTER = {
-  "Deep Dive: Probability & Stats": "Math Primer",
-  "Deep Dive: Backprop": "Foundations",
-  "Deep Dive: Optimizers": "Foundations",
-  "Deep Dive: Regularization": "Foundations",
+  "Math Primer": "Python Refresher",
+  "Deep Dive: Probability & Stats": "Foundations",
   "Deep Dive: Evaluation Metrics": "Foundations",
   "Deep Dive: CNN Internals": "Architectures",
+  "Deep Dive: Backprop": "Deep Dive: CNN Internals",
+  "Deep Dive: Optimizers": "Deep Dive: Backprop",
+  "Deep Dive: Regularization": "Deep Dive: Optimizers",
   "Deep Dive: Attention & Transformers": "Transformers & LLMs",
   "Deep Dive: Embeddings & Contrastive": "Transformers & LLMs",
   "Deep Dive: LLM Systems & Efficiency": "Transformers & LLMs",
@@ -24,8 +28,9 @@ const UNIT_AFTER = {
   "Deep Dive: RAG Evaluation": "Retrieval-Augmented Generation",
   "Deep Dive: Agents in Practice": "AI Agents",
   "Deep Dive: RL Foundations": "Reinforcement Learning",
-  "Deep Dive: Post-training LLMs": "Fine-tuning in Practice",
-  "Deep Dive: Information Theory": "Math Primer"
+  // KL's uses (RLHF, PPO, distillation) are taught by then; Fine-tuning and Post-training follow it.
+  "Deep Dive: Information Theory": "Deep Dive: RL Foundations",
+  "Deep Dive: Post-training LLMs": "Fine-tuning in Practice"
 };
 
 const str = v => (typeof v === "string" ? v : "");
@@ -207,18 +212,28 @@ function subjectOf(rawUnit, ui) {
   return SUBJECT_IDS.includes(tr) ? tr : "ml";
 }
 
-/* Units (each with ui, title, tr) in display order: a unit named in `after` follows its base unit.
-   A unit whose base is missing, in another subject, or itself placed after something stays in index order. */
+/* Units (each with ui, title, tr) in display order: a unit named in `after` follows its base unit and everything
+   already placed after that base. A unit whose base is missing, in another subject, itself, or part of a cycle stays
+   in index order. */
 function displayOrder(units, after = UNIT_AFTER) {
   const byTitle = new Map();
   units.forEach(u => { if (!byTitle.has(u.title)) byTitle.set(u.title, u); });
-  const baseOf = u => {
+  const link = u => {
     const b = byTitle.get(after[u.title]);
-    return b && b !== u && b.tr === u.tr && !after[b.title] ? b : null;
+    return b && b !== u && b.tr === u.tr ? b : null;
   };
+  const inCycle = u => {
+    const seen = new Set([u]);
+    for (let b = link(u); b; b = link(b)) { if (seen.has(b)) return true; seen.add(b); }
+    return false;
+  };
+  const baseOf = u => (link(u) && !inCycle(u) ? link(u) : null);
   const kids = new Map();
   units.forEach(u => { const b = baseOf(u); if (b) kids.set(b, [...(kids.get(b) || []), u]); });
-  return units.filter(u => !baseOf(u)).flatMap(u => [u, ...(kids.get(u) || [])]);
+  const out = [];
+  const visit = u => { out.push(u); (kids.get(u) || []).forEach(visit); };
+  units.filter(u => !baseOf(u)).forEach(visit);
+  return out;
 }
 
 /* CURRICULUM -> units, indexed by ui, with a hue (by global index, so colours never change), a subject,

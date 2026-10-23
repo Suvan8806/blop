@@ -1,7 +1,7 @@
 // Offline support: serve cached files instantly, refresh them in the background.
-const CACHE = "blop-v14";
-const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/content-interactive.js", "/plan.js", "/srs.js", "/jobs.js", "/mock-prompts.js", "/mock.js", "/state.js", "/merge.js", "/sync-logic.js", "/push-logic.js", "/logic.js",
-  "/core.js", "/qtypes.js", "/qtypes-input.js", "/qtypes-tap.js", "/today.js", "/jobs-ui.js", "/config.js", "/sync.js", "/sync-ui.js", "/push-ui.js", "/mock-ui.js", "/app.js", "/manifest.webmanifest",
+const CACHE = "blop-v18";
+const ASSETS = ["/", "/index.html", "/content.js", "/content-code.js", "/content-sd.js", "/content-ml-deep.js", "/content-extra.js", "/content-interactive.js", "/plan.js", "/srs.js", "/jobs.js", "/mock-prompts.js", "/mock.js", "/state.js", "/merge.js", "/sync-logic.js", "/push-logic.js", "/logic.js", "/estimate.js", "/paths.js", "/landing-logic.js", "/landing.css",
+  "/core.js", "/qtypes.js", "/qtypes-input.js", "/qtypes-tap.js", "/session-nav.js", "/report-ui.js", "/today.js", "/focus-ui.js", "/jobs-ui.js", "/config.js", "/sync.js", "/sync-ui.js", "/push-ui.js", "/mock-ui.js", "/landing.js", "/app.js", "/manifest.webmanifest",
   "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-maskable-512.png", "/icons/apple-touch-icon.png"];
 const ASSET_PATHS = new Set(ASSETS);
 // Sign-in redirects carry one-time secrets in the URL; such a URL is never stored in the cache.
