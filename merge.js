@@ -8,7 +8,8 @@
    - srs: per lesson, newer updatedAt. jobs: per id, newer updatedAt (tombstones included).
    - mock (interview attempts): per id, newer updatedAt (tombstones included), then the newest KEEP_MOCK.
    - plan: newer updatedAt; for the same plan, targets merge per day with max.
-   - times: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
+   - focus (learning goals and units marked known): newer updatedAt; null (never picked) always loses.
+   - times and pace: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
    - day counters: same day -> max; otherwise the later day.
    - top-level fields that aren't in BlopState.KNOWN_KEYS are dropped.
    - every timestamp is capped at now + 1 day first, so a device with a clock far ahead can't win forever.
@@ -102,6 +103,11 @@ function mergePlan(a, b) {
   if (!x.ended && !y.ended && x.id && x.id === y.id) return { ...w, targets: mergeTargets(x.targets, y.targets) };
   return w;
 }
+/* The learning focus moves as one piece: the newer copy wins. */
+function mergeFocus(a, b) {
+  const x = isObj(a) ? a : null, y = isObj(b) ? b : null;
+  return !x || !y ? x || y : newer(x, y);
+}
 /* Lesson times carry no ids, so a time on both devices is the same sample: keep each value as many
    times as the side with more of it, in the newer side's order, then the last 20. */
 function mergeTimes(base, other) {
@@ -139,6 +145,7 @@ function capStamps(s, limit) {
   Object.keys(s).forEach(k => { if (KNOWN.has(k)) out[k] = s[k]; });
   ["updatedAt", "settingsUpdatedAt", "resetAt", "progressUpdatedAt"].forEach(k => { if (k in out) out[k] = cap(out[k]); });
   if (isObj(out.plan)) out.plan = item(out.plan);
+  if (isObj(out.focus)) out.focus = item(out.focus);
   if (isObj(out.srs)) out.srs = Object.fromEntries(Object.entries(out.srs).map(([k, v]) => [k, item(v)]));
   ["jobs", "mock"].forEach(k => { if (Array.isArray(out[k])) out[k] = out[k].map(item); });
   return out;
@@ -171,7 +178,9 @@ function merge(local, remote, now = Date.now()) {
     jobs: mergeJobs(a.jobs, b.jobs),
     mock: mergeMock(a.mock, b.mock),
     plan: mergePlan(a.plan, b.plan),
+    focus: mergeFocus(a.focus, b.focus),
     times: mergeTimes(top === a ? pa.times : pb.times, top === a ? pb.times : pa.times),
+    pace: mergeTimes(top === a ? pa.pace : pb.pace, top === a ? pb.pace : pa.pace),
     ...pickSettings(a, b),
     ...pickDay(pa, pb),
     resetAt,
@@ -182,6 +191,6 @@ function merge(local, remote, now = Date.now()) {
   return out;
 }
 
-const Merge = { MAX_SKEW_MS, merge, mergeJobs, mergeMock, mergePlan, mergeTimes, mergeByStamp, KEEP_TIMES, KEEP_MOCK };
+const Merge = { MAX_SKEW_MS, merge, mergeJobs, mergeMock, mergePlan, mergeFocus, mergeTimes, mergeByStamp, KEEP_TIMES, KEEP_MOCK };
 if (typeof module !== "undefined" && module.exports) module.exports = Merge; else root.Merge = Merge;
 })(typeof window !== "undefined" ? window : globalThis);

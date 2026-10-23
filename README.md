@@ -38,8 +38,11 @@ new units at the end of `window.CURRICULUM`, new questions at the end of a lesso
 Units 16 and 17 are tagged `sd` in `logic.js` (`UNIT_SUBJECT`) so `content.js` stays untouched.
 
 Display order within a subject is unit order, except units named in `UNIT_AFTER` in `logic.js`: each is shown
-(and planned) right after the base unit whose title it names, so a deep dive sits next to the unit it deepens.
-This only changes display order and the "Unit N" numbers, never unit indices or ids.
+(and planned) right after the unit whose title it names, after anything already placed there. Chains are allowed, so
+the order can follow the prerequisite graph in `paths.js` (Math Primer before Foundations, the backprop, optimizer and
+regularization deep dives after Architectures). `test/paths.test.js` checks that each subject's display order is a
+valid topological order of that graph and that key concepts (chain rule, ReLU, softmax, PPO) are never used before the
+lesson that teaches them. This only changes display order and the "Unit N" numbers, never unit indices or ids.
 
 ### Lessons
 `[title, teach text, questions, {problems:[...]}]`. The 4th element is optional; `problems` is a
@@ -124,7 +127,7 @@ Merge rules: study progress from a copy last changed before the latest reset is 
 union (earliest day kept), XP is counted per device (`xpLog`, merged by max per device and shown as the sum, so two
 devices earning offline add up), missed-question counts take the max, the streak
 comes from the side that studied most recently, review schedule entries, jobs and mock interview attempts (including delete tombstones) take
-the newer `updatedAt` (attempts are then capped at the newest 100), the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
+the newer `updatedAt` (attempts are then capped at the newest 100), the learning focus takes the newer `updatedAt`, the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
 targets merged by max, lesson times are a union capped at 20, settings follow `settingsUpdatedAt`, today's counters
 take the max on the same day, and top-level fields the app doesn't know are dropped. Every timestamp is capped at
 the merging device's clock plus one day, so a device whose clock is far ahead can't win every merge forever.
@@ -138,12 +141,17 @@ that way, or the CSP blocks them. Google sign-in is a top-level navigation to su
 The service worker caches only the files in its `ASSETS` list and Google Fonts, never `/api/` or the Supabase API,
 and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
 Vercel serves every uploaded repo file publicly, so `.vercelignore` keeps this README, `supabase/`, `test/`,
-`.github/` and `node_modules/` out of the deployment (`package.json` and `package-lock.json` stay: the functions
+`.github/`, `scripts/` and `node_modules/` out of the deployment (`package.json` and `package-lock.json` stay: the functions
 need them for `web-push`).
 
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
 - `plan.js`: pure study-plan and calendar logic. Tested in node.
+- `paths.js`: learning paths. The unit prerequisite map (by unit title), the goals a learner can pick, and
+  `pathFor()`, which returns a goal's units plus every prerequisite in dependency order (ties follow display order),
+  leaving out units marked "I already know this". With a focus (`S.focus = {goals, known, updatedAt}`) the study
+  plan, today's lessons and the Learn tab's "Your path" view follow the path. Tested in node.
+- `focus-ui.js`: the "What do you want to learn?" picker (goals, path, pace), shown on first run and from Today and Profile.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
 - `state.js`: which saved fields exist, which are progress and which are settings; reset; XP per device; clamping
@@ -152,9 +160,13 @@ need them for `web-push`).
 - `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
 - `config.js`: Supabase URL and anon key (empty = no sync).
 - `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
-- `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage` table and the `push_subs` table.
+- `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage`, `push_subs` and `content_reports` tables.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
+- `session-nav.js`: going back to earlier steps of a session (read only), "Show lesson" and the report button. Its
+  history logic (`NavLogic`) is tested in node.
+- `report-ui.js`: the "Report a problem" sheet. `api/report.js`, `api/_lib/report-*.js`: the report function. Tested in node.
+- `estimate.js`: per-lesson time estimates and the learner's pace. Tested in node.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
 - `jobs-ui.js`: the Jobs tab.
 - `mock-prompts.js`: the mock interview questions, rubrics and outlines (browser script and node module).
@@ -166,9 +178,29 @@ need them for `web-push`).
 - `api/push-subscribe.js`, `api/cron-remind.js`, `api/_lib/push-*.js`, `api/_lib/cron-remind-handler.js`,
   `api/_lib/curriculum.js`: the reminder functions (see "Streak reminders"). Tested in node with a stubbed fetch and web-push.
 - `.github/workflows/remind.yml`: the hourly GitHub Action that triggers the reminders.
+- `landing-logic.js`: pure landing decisions (who sees it, URL cleanup, curriculum counts). Loaded in `<head>`. Tested in node.
+- `landing.js`, `landing.css`: the landing page shown to new visitors.
 - `app.js`: tabs, the Learn and Profile screens. `?tab=today` (or another tab name) opens that tab.
 
 They share code through `window.Blop`.
+
+## Landing page
+New visitors see a landing page (what blop is, the three subjects with counts computed from the curriculum, how it works,
+features, previews built in HTML, a privacy note and an FAQ) before the app. It lives inside the app at `/` so sign-in
+redirects, the service worker and the installed app keep working: `landing-logic.js` runs in `<head>` and sets
+`html.lp-on`, which shows `#landing` and hides the app and the tabs.
+
+- Shown when this device has no progress, no session and no `blop-seen-landing` flag in localStorage, or for `/?welcome`
+  (Profile → About blop). Never on a sign-in redirect (`?code=`, `#access_token=`), and never in the installed app
+  (the manifest's `start_url` is `/?source=pwa`; `id` stays `/` so existing installs keep their identity).
+- "Start learning, no account needed" sets the flag and calls `Blop.afterLanding()`. `focus-ui.js` sets it: with no
+  focus yet it opens the "What do you want to learn?" picker over the Today tab, otherwise it opens Today
+  (`LandingLogic.afterLandingStep`, tested in node). The picker never auto-opens under the landing.
+- "Sign in" opens the Profile sync panel (`sync-ui.js`) in a sheet. A successful email-code sign-in goes to Today, waits
+  for the account's first sync (up to 10 s), then opens the picker only if the synced state has no focus and no
+  progress. A Google sign-in returns through the redirect, which skips the landing.
+- `blop-seen-landing` only means the landing was dismissed; whether onboarding is needed comes from the focus and progress.
+- `index.html` keeps a short static intro inside `#landing` for crawlers, and a `<noscript>` note.
 
 ## Study plan
 The Today tab spreads the lessons you have left over 14, 30, 45 or 60 days. Today's target is fixed
@@ -304,10 +336,47 @@ nudge when the account has no synced progress). Tapping it opens blop on the Tod
 - Each device gets at most one reminder per day; to test again the same day, clear `last_sent_day` for that row in
   Supabase → Table Editor → `push_subs`.
 
+## Lesson sessions
+- **Back:** the ← in the session top bar (or the ← key) shows the previous step: a teach slide as it was, an answered
+  question read only, with your pick, the right answer and the feedback. It can't be answered again, so scoring, the
+  retry queue, missed counts and accuracy don't change. Go back as far as you like; → (or the → key) steps forward and
+  "Back to current" returns to the live step, exactly as you left it (a picked but unchecked option stays picked).
+  Arrow keys are left alone in text fields and in order/match widgets.
+- **Show lesson:** every question has a "Show lesson" link that opens the teach text of that question's own lesson
+  (practice and reviews mix lessons) in a sheet; Escape or × returns to the same place.
+- **Report a problem:** the flag opens a sheet with a reason (Wrong answer, Unclear, Typo, Other) and an optional note
+  (up to 500 characters). It sends the lesson id, the question id (or `teach`), the text on screen, the app version (the
+  service worker's cache name) and a timestamp to `POST /api/report`. Works signed out; a signed-in report also stores
+  the account id. If the server can't take it (not set up, offline), the sheet offers an email to blop@bloplearn.space
+  with the same details.
+
+`runSession` in `core.js` has five one-line hooks into `session-nav.js`: `create(el)`, `topHTML()` in the top bar,
+`bind(item)` after each step renders, `record()` when a step is done, and `key(e)` first in the key handler. The live
+step's DOM is set aside while you look back and put back afterwards, so question types need nothing extra.
+
+### Reports: how it works and setup
+- Same-origin POST, JSON only. Ids must look like `u3l2` / `u3l2q1` (or `teach`), the reason must be one of the four,
+  the note at most 500 characters, the shown text is cut at 2000. Control characters are stripped.
+- At most 20 reports a day per signed-in account, or per hashed IP when signed out. The IP is hashed with SHA-256 and a
+  salt (`REPORT_SALT`, else `CRON_SECRET`); the raw IP is never stored.
+- Rows go to `content_reports` with the service-role key (RLS on, no policies). Run `supabase/schema.sql` again to
+  create it. Optionally add `REPORT_SALT` (any long random string) for Production and Preview.
+- Without Supabase env vars or a salt the function answers 503 and the app falls back to the email link.
+- To read open reports: `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/reports.mjs [limit]`.
+  `scripts/` isn't deployed. Mark a report done in the Table Editor (`status`: `fixed` or `wontfix`).
+
+## Time estimates
+Each lesson shows how long it takes: its teach text at 200 words a minute, plus 15 s per multiple-choice or fill-the-gap
+question, 30 s per order (and any other type), 40 s per match, plus 10 s. Finishing a lesson stores actual ÷ estimated
+time (`S.pace`, percent, last 20, synced like lesson times); with at least 5 of them every estimate is scaled by their
+median, clamped to 0.5×–2.5×. Learn rows and unit headers, the lesson's first screen, Today's lessons and totals, the
+plan setup and the paths picker all use `estimate.js`, so the numbers agree. (`Plan.lessonSecs`, the median of raw
+lesson times, is no longer used by the screens.)
+
 ## Reset
 Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
 times, today's counts and the study plan, on this device and (through sync) on your other devices. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js test/push-core.test.js test/push-handlers.test.js test/push-logic.test.js test/sw-push.test.js`.
+Run all tests with `node --test $(ls test/*.test.js)` (Git Bash or any POSIX shell).
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.

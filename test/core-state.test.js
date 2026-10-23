@@ -7,7 +7,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const FILES = ["content.js", "content-code.js", "content-sd.js", "content-ml-deep.js", "content-extra.js", "plan.js", "srs.js",
-  "jobs.js", "mock-prompts.js", "mock.js", "state.js", "merge.js", "sync-logic.js", "logic.js", "core.js"];
+  "jobs.js", "mock-prompts.js", "mock.js", "state.js", "merge.js", "sync-logic.js", "logic.js", "paths.js", "core.js"];
 
 function boot(saved) {
   const store = new Map(saved === undefined ? [] : [["mlepath-v1", JSON.stringify(saved)]]);
@@ -102,4 +102,54 @@ test("reset stamps resetAt and progressUpdatedAt; wipe clears everything", () =>
   B.wipe();
   assert.equal(B.S.jobs.length, 0);
   assert.equal(store.has("blop-mock-drafts"), false);
+});
+
+/* ---------- learning focus ---------- */
+const titles = (B, ids) => [...new Set(ids.map(id => B.UNITS[B.BY_ID[id].ui].title))];
+
+test("an old save has no focus; a focus loads cleaned against this build", () => {
+  assert.equal(boot({ done: { u0l0: true } }).B.S.focus, null);
+  assert.equal(boot(undefined).B.S.focus, null);
+  const { B } = boot({ focus: { goals: ["cnn", "bogus", "cnn"], known: ["Python Refresher", "No Such Unit", 7], updatedAt: 9, extra: 1 } });
+  eq(B.S.focus, { goals: ["cnn"], known: ["Python Refresher"], updatedAt: 9 });
+  assert.equal(B.hasFocus(), true);
+  assert.equal(boot({ focus: "x" }).B.S.focus, null);
+  assert.equal(boot({ focus: { goals: [] , updatedAt: 3 } }).B.hasFocus(), false);
+});
+
+test("without a focus the plan covers every unit in display order, exactly as before", () => {
+  const { B } = boot({ skip: [2] });
+  assert.equal(B.pathUnits(), null);
+  assert.equal(B.pathNext(), null);
+  eq(B.planSkip(), [2]);
+  assert.equal(B.planIds().length, B.ALL.length - B.UNITS[2].lessons.length);
+});
+
+test("with a focus the plan, today's lessons and next-up follow the path, known units left out", () => {
+  const { B } = boot({ focus: { goals: ["cnn"], known: ["Python Refresher"], updatedAt: 1 },
+    plan: { id: "p", start: todayNum(), days: 14, knownUnits: 53, targets: {}, updatedAt: 1 } });
+  eq(titles(B, B.planIds()), ["Start Here", "Math Primer", "Foundations", "Architectures", "Deep Dive: CNN Internals"]);
+  const s = B.sched();
+  assert.equal(s.total, B.planIds().length);
+  assert.equal(s.plan[0].ids[0], "u0l0");
+  assert.equal(B.BY_ID[s.plan[0].ids[1]].ui, B.UNITS.findIndex(u => u.title === "Math Primer"));
+  assert.equal(B.nextUp().id, "u0l0");
+  // startRemaining is estimated over the path for a plan saved without it.
+  assert.equal(B.S.plan.startRemaining, B.planIds().length);
+});
+
+test("with a focus and no plan, next-up is the first unfinished lesson on the path", () => {
+  const { B } = boot({ done: { u0l0: true }, focus: { goals: ["leetcode"], known: ["Python Refresher"], updatedAt: 1 } });
+  assert.equal(B.sched(), null);
+  const cf = B.UNITS.find(u => u.title === "Coding Foundations");
+  assert.equal(B.pathNext().id, cf.lessons[0].id);
+  assert.equal(B.nextUp().id, cf.lessons[0].id);
+});
+
+test("a synced focus merges by updatedAt and survives a reset", () => {
+  const { B } = boot({ focus: { goals: ["cnn"], known: [], updatedAt: 5 } });
+  B.replaceState(require("../merge.js").merge(JSON.parse(JSON.stringify(B.S)), { focus: { goals: ["rag"], known: ["Start Here"], updatedAt: 9 } }));
+  eq(B.S.focus, { goals: ["rag"], known: ["Start Here"], updatedAt: 9 });
+  B.reset();
+  eq(B.S.focus.goals, ["rag"]);
 });

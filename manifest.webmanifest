@@ -1,8 +1,9 @@
 {
   "name": "blop",
   "short_name": "blop",
-  "description": "Bite-sized lessons for ML engineering and system design interviews.",
-  "start_url": "/",
+  "description": "Bite-sized lessons for ML engineering, coding patterns and system design interviews.",
+  "id": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
