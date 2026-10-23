@@ -16,6 +16,7 @@ function loadUnits() {
     require("../../content-sd.js");
     require("../../content-ml-deep.js");
     require("../../content-extra.js");
+    require("../../content-interactive.js");
     const warn = console.warn;
     console.warn = () => {}; // buildUnits warns about skipped malformed questions; not useful in function logs
     try { units = Logic.buildUnits(globalThis.window.CURRICULUM); } finally { console.warn = warn; }

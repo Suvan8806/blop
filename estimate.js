@@ -7,7 +7,10 @@
 "use strict";
 const WPM = 200;
 const OVERHEAD_SECS = 10;
-const QUESTION_SECS = { mc: 15, gap: 15, order: 30, match: 40 };
+const QUESTION_SECS = { mc: 15, gap: 15, order: 30, match: 40,
+  // interactive formats (qtypes-input.js, qtypes-tap.js, and derive/rank in qtypes.js)
+  num: 30, type: 30, output: 30, est: 25, bug: 35, blanks: 30, bigo: 20, dims: 30, derive: 45, rank: 35,
+  bucket: 40, tf: 30, compare: 25, cm: 50 };
 const OTHER_QUESTION_SECS = 30; // any other or typed type
 const MIN_RATIO = 0.5, MAX_RATIO = 2.5;
 const MIN_SAMPLES = 5;

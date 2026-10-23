@@ -222,6 +222,8 @@ function startPractice(label){
 }
 
 /* ---------- session runner ---------- */
+/* True when the key event's target is a text field, select or editable element. */
+function isTyping(t){ return !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "")); }
 const PRAISE = ["Nice!","Correct!","You got it.","Exactly.","Great job."];
 function runSession(items, opts){
   const queue = items.slice();
@@ -264,7 +266,7 @@ function runSession(items, opts){
   function question(q, retry){
     const T = B.qtypes;
     el.innerHTML = `${top()}<div class="s-body slide"><div class="kicker">${retry ? "Try this one again" : T.kicker(q)}</div>
-      <div class="prompt" id="qp">${T.prompt(q)}</div><div class="qa" data-q="${q.id}"></div></div>
+      ${T.codeHTML ? T.codeHTML(q) : ""}<div class="prompt" id="qp">${T.prompt(q)}</div><div class="qa" data-q="${q.id}"></div></div>
       <div class="s-foot" id="foot" aria-live="polite"><div class="in"><button class="cta" id="check" disabled>${T.checkLabel(q)}</button></div></div>`;
     bindQuit();
     const check = el.querySelector("#check");
@@ -303,6 +305,14 @@ function runSession(items, opts){
     if (!document.body.contains(el)) return document.removeEventListener("keydown", keys);
     if (nav.key(e)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    // Keys typed into a field belong to the field: no digit, letter or Backspace shortcuts. Enter in a one-line
+    // field checks the answer; in a textarea it is a new line.
+    if (isTyping(e.target)) {
+      if (e.key === "Enter" && !e.isComposing && e.target.tagName === "INPUT") {
+        const b = el.querySelector("#check:not([disabled])"); if (b) { e.preventDefault(); b.click(); }
+      }
+      return;
+    }
     if (ctl && !el.querySelector("#next") && ctl.key(e)) return e.preventDefault();
     if (e.key === "Enter") { const b = el.querySelector("#next, #check:not([disabled]), #go, #done"); if (b) { e.preventDefault(); b.click(); } }
   });
@@ -398,6 +408,6 @@ function ringSVG(pct, label){
 }
 
 Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathIds, pathUnits, pathNext, nextCore, lessonKicker, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime, estSecs, estLabel,
-  $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
+  $, esc, fmt, teachHTML, shuffle, isTyping, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

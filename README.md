@@ -28,6 +28,7 @@ Content lives in plain script files, loaded in this order by `index.html`:
 | `content-sd.js` | System Design units (system design, ML system design, LLM systems) |
 | `content-ml-deep.js` | ML deep-dive units |
 | `content-extra.js` | extra questions appended to lessons that already shipped |
+| `content-interactive.js` | interactive questions (numbers, estimates, code, bugs, shapes, sorting...) appended to lessons that already shipped, at most 2 per lesson |
 
 **Never reorder or delete units, lessons or questions.** Ids come from array positions
 (`u{unit}l{lesson}` and `u{unit}l{lesson}q{n}`) and saved progress uses them. Only append:
@@ -62,9 +63,44 @@ Order the steps: list `items` in the correct order (2–6 of them); the app shuf
 Match pairs: 4 `[term, definition]` pairs; definitions are shuffled. A wrong pair counts as a miss.
 `{type:"match", p:"Match each term", pairs:[["Set lookup","O(1)"],["Sort","O(n log n)"],["Binary search","O(log n)"],["All pairs","O(n^2)"]], why:"..."}`
 
-`why` is optional everywhere. Malformed questions are skipped (see `normQ` in `logic.js`) without shifting other ids.
-Keyboard: number keys pick options (or the next step to place), Backspace removes the last placed step,
-match uses numbers for terms and letters for definitions, and Enter checks or continues.
+Multiple choice can also be written as an object, which allows a code snippet:
+`{type:"mc", p:"What does this print?", code:"print(7 // 2)", opts:["3","3.5","4"], why:"..."}`
+
+**Code snippets.** Any object question may have `code`: a multi-line snippet shown as a code block above the prompt.
+Use it instead of pointing at "the code above" in the teach text, which isn't visible in reviews.
+
+**Interactive formats.** All are object questions; `why` is shown with the feedback, and the correct answer is
+always shown on a miss. Limits keep every item usable by keyboard (digits 1-9, letters A-H) and on a 390px phone.
+
+| Type | What the learner does | Schema |
+|---|---|---|
+| `num` | Types a number. Right within `max(tol, rel × abs(answer))` (exact when both are 0). Accepts `1,200`, `1.2k`, `3.5M`, `1e-3`, `3/4`, `75%` (= 0.75) and the question's own `unit` after the number. | `{type:"num", p, answer:42, tol?:0.01, rel?:0.05, unit?:"GB", why}` |
+| `est` | Sets a log-scale slider (or types a value). Right within a factor of `within` (default 2) either way; afterwards the accepted band is shaded. | `{type:"est", p, answer:11574, within?:2, min?:10, max?:1e7, unit?:"QPS", why}` (`min`/`max` default to answer ÷/× 1000) |
+| `type` | Types a short answer, often the `___` in `code`. Any of `answers` counts. `norm`: `"text"` (default; case, spacing and a final full stop ignored), `"code"` (spacing, quote style and a final `;` ignored, case matters) or `"exact"`. | `{type:"type", p, code?:"dp[i] = ___", answers:["max(dp[i-1], dp[i-2] + x)", ...], norm?:"code", why}` |
+| `output` | Predicts what `code` prints: typed (`answer`, a string or a list; `norm:"py"` by default ignores spacing, blank lines and quote style but not line breaks or case; `"exact"` is strict) or picked from `opts` (first is correct). A multi-line answer gets a text area (Ctrl+Enter checks). | `{type:"output", p, code, answer:"7 5", why}` or `{type:"output", p, code, opts:["None","10"], why}` |
+| `bug` | Taps the wrong line of `code` (2-12 lines; `line` is 1-based and not blank), then picks the fix if `fix` is given (first option correct). | `{type:"bug", p, code, line:4, fix?:{opts:["lo = mid + 1","hi = mid - 1"]}, why}` |
+| `blanks` | Picks an option from a dropdown in each gap. `code` holds `{0}` ... `{n-1}` once each (1-4 blanks); `blanks[i]` lists the options for `{i}`, correct first. | `{type:"blanks", p, code:"for x in {0}(a, b):", blanks:[["zip","enumerate"]], why}` |
+| `bigo` | Picks time (and optionally extra space) from a ladder (3-8 rungs; default `O(1)` ... `O(2^n)`). | `{type:"bigo", p, code?, time:"O(n)", space?:"O(1)", ladder?:[...], why}` |
+| `dims` | Builds a shape tuple from chips (2-9 chips, reusable; 1-6 dimensions). | `{type:"dims", p, code?, answer:["B","8","n","64"], chips:["B","n","8","64","512"], why}` |
+| `derive` | Orders derivation steps (2-6) and leaves the decoys (1-3 classic mistakes) unplaced. | `{type:"derive", p, items:["step 1","step 2"], decoys:["wrong step"], why}` |
+| `rank` | Orders items (2-6) by a criterion; `axis` names the two ends. | `{type:"rank", p, items:["L1 cache","RAM","SSD"], axis:["fastest","slowest"], why}` |
+| `bucket` | Sorts 3-8 cards into 2-4 buckets. Every card must be right. | `{type:"bucket", p, buckets:["Leak","Safe"], items:[["Scaler fit on all data","Leak"], ...], why}` |
+| `tf` | Answers a deck of 3-8 true/false cards; each card's optional note shows after checking. Right when at least `pass` (default 0.8) of the cards are right. | `{type:"tf", p, cards:[["Dropout runs at inference", false, "note"], ...], pass?:0.8, why}` |
+| `compare` | Picks the better of two variants (each has `code` and/or `text`, plus an optional `label`), then why if `reason` is given (first option correct). | `{type:"compare", p, a:{label, code}, b:{label, text}, answer:"b", reason?:{opts:[...]}, why}` |
+| `cm` | Fills a 2×2 confusion matrix from a scenario, then up to 3 metrics from it (`precision`, `recall`, `f1`, `accuracy`, `fpr`, `specificity`; tolerance `tol`, default 0.01; `75%` is read as 0.75). | `{type:"cm", p, labels?:["fraud","legit"], answer:{tp:60, fp:20, fn:40, tn:9880}, then?:[{metric:"precision", answer:0.75}], why}` |
+| `match` + `mono` | The match type with code-style terms: add `mono:true` for a monospace grid. | `{type:"match", mono:true, p, pairs:[["a[-1]","40"], ...], why}` |
+
+`why` is optional everywhere (but every interactive item ships with one). Malformed questions are skipped with a
+console warning (see `normQ` in `logic.js`) without shifting other ids, so an older app that doesn't know a type
+simply skips it. Answer checks are pure functions in `logic.js` (`checkNum`, `checkEst`, `checkTyped`, `checkBug`,
+`checkBlanks`, `checkBigO`, `checkDims`, `checkOrder`, `checkBucket`, `checkTF`, `checkCompare`, `checkCM`), tested in
+`test/interactive.test.js`.
+
+Keyboard: number keys pick options (or the next step or chip to place), Backspace removes the last placed step or
+chip, match uses numbers for terms and letters for definitions, `bug` uses numbers for lines and letters for fixes,
+`bigo` uses numbers for time and letters for space, `bucket` sorts the outlined card with 1-4 and `tf` with T/F,
+`compare` uses A/B then numbers, and Enter checks or continues. While the focus is in a text field, dropdown or
+slider, keys go to that field: shortcuts are off, and Enter in a one-line field checks the answer.
 
 After editing, bump `CACHE` in `sw.js` (e.g. "blop-v10") so phones pick up the change, and add any new file to its `ASSETS` list.
 
@@ -162,7 +198,8 @@ need them for `web-push`).
 - `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
 - `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage`, `push_subs` and `content_reports` tables.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
-- `qtypes.js`: rendering for each question type.
+- `qtypes.js`: rendering for the tap question types (multiple choice, gap, order, derive, rank, match) and the type registry.
+- `qtypes-input.js`: typed question types (num, est, type, output, cm). `qtypes-tap.js`: bug, blanks, bigo, dims, bucket, tf, compare.
 - `session-nav.js`: going back to earlier steps of a session (read only), "Show lesson" and the report button. Its
   history logic (`NavLogic`) is tested in node.
 - `report-ui.js`: the "Report a problem" sheet. `api/report.js`, `api/_lib/report-*.js`: the report function. Tested in node.

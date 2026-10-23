@@ -19,6 +19,21 @@ test("reading at 200 wpm plus a time per question type plus 10 s overhead", () =
   assert.equal(E.lessonSecs(null), 10);
 });
 
+test("each interactive format has its own question time", () => {
+  const want = { num: 30, type: 30, output: 30, est: 25, bug: 35, blanks: 30, bigo: 20, dims: 30, derive: 45, rank: 35,
+    bucket: 40, tf: 30, compare: 25, cm: 50 };
+  for (const [type, secs] of Object.entries(want)) {
+    assert.equal(E.QUESTION_SECS[type], secs, type);
+    assert.equal(E.lessonSecs(lesson(0, [type])), secs + 10, type);
+  }
+  assert.equal(E.lessonSecs(lesson(0, ["bigo", "cm", "mc"])), 20 + 50 + 15 + 10);
+});
+
+test("every question type the app renders has a time", () => {
+  const types = new Set(loadUnits().flatMap(u => u.lessons.flatMap(l => l.qs.map(q => q.type))));
+  for (const t of types) assert.ok(Object.prototype.hasOwnProperty.call(E.QUESTION_SECS, t), t);
+});
+
 test("the pace ratio scales the estimate, clamped to 0.5x-2.5x", () => {
   const l = lesson(200, ["mc", "mc"]); // 100 s
   assert.equal(E.lessonSecs(l, 1.5), 150);

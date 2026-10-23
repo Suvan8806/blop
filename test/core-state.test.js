@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const FILES = ["content.js", "content-code.js", "content-sd.js", "content-ml-deep.js", "content-extra.js", "plan.js", "srs.js",
+const FILES = ["content.js", "content-code.js", "content-sd.js", "content-ml-deep.js", "content-extra.js", "content-interactive.js", "plan.js", "srs.js",
   "jobs.js", "mock-prompts.js", "mock.js", "state.js", "merge.js", "sync-logic.js", "logic.js", "paths.js", "core.js"];
 
 function boot(saved) {
@@ -24,6 +24,16 @@ function boot(saved) {
 /* Objects from the sandbox have its own prototypes, so compare them as plain JSON. */
 const eq = (actual, expected) => assert.deepEqual(JSON.parse(JSON.stringify(actual)), expected);
 const todayNum = () => { const d = new Date(); return Math.floor((d - d.getTimezoneOffset() * 60000) / 864e5); };
+
+test("isTyping spots text fields, so session shortcuts leave typing alone", () => {
+  const { B } = boot();
+  assert.equal(B.isTyping({ tagName: "INPUT" }), true);
+  assert.equal(B.isTyping({ tagName: "TEXTAREA" }), true);
+  assert.equal(B.isTyping({ tagName: "SELECT" }), true);
+  assert.equal(B.isTyping({ tagName: "DIV", isContentEditable: true }), true);
+  assert.equal(B.isTyping({ tagName: "BUTTON" }), false);
+  assert.equal(B.isTyping(null), false);
+});
 
 test("a saved plan with days: 3e8 loads as no plan, and today's schedule doesn't crash", () => {
   const { B } = boot({ plan: { id: "p", start: todayNum() - 3, days: 3e8, knownUnits: 5, startRemaining: 9, targets: {}, updatedAt: 5 } });
