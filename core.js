@@ -34,7 +34,7 @@ const DEVICE_ID = (() => {
 function normalize(raw){
   const src = isObj(raw) ? raw : {};
   const st = Object.assign({ done:{}, xp:0, xpLog:{}, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, focus:null, skip:[], subject:"ml", srs:{}, remind: ST.DEFAULT_REMIND,
+    doneOn:{}, times:[], pace:[], plan:null, focus:null, skip:[], subject:"ml", srs:{}, remind: ST.DEFAULT_REMIND,
     settingsUpdatedAt:0, updatedAt:0, resetAt:0, progressUpdatedAt:0, jobs:[], mock:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, ST.clean(src));
   st.skip = Array.isArray(st.skip) ? [...new Set(st.skip.filter(x => Number.isInteger(x) && x >= 0 && x < UNITS.length))].slice(0, UNITS.length) : [];
   if (!(st.open === null || (Number.isInteger(st.open) && st.open >= -1 && st.open < UNITS.length))) st.open = null;
@@ -102,6 +102,9 @@ function award(xp, isLesson){
 }
 function liveStreak(){ return (S.last >= today() - 1) ? S.streak : 0; }
 const MAX_LESSON_SECS = 900, MIN_LESSON_SECS = 15, KEEP_TIMES = 20;
+/* Estimated seconds for a lesson, scaled by this learner's pace (estimate.js), and its "~2 min" label. */
+function estSecs(l){ return window.Estimate ? Estimate.lessonSecs(l, Estimate.paceRatio(S.pace)) : 120; }
+function estLabel(secs){ return window.Estimate ? Estimate.label(secs) : `~${Math.max(1, Math.round(secs / 60))} min`; }
 function recordTime(secs){
   S.times = [...S.times, Math.min(MAX_LESSON_SECS, Math.max(MIN_LESSON_SECS, Math.round(secs)))].slice(-KEEP_TIMES);
 }
@@ -159,6 +162,7 @@ function startLesson(l){
       if (first) S.doneOn[l.id] = today();
       if (window.SRS) S.srs = SRS.enter(S.srs, l.id, today(), Date.now());
       recordTime((Date.now() - startedAt) / 1000);
+      if (window.Estimate) S.pace = Estimate.addSample(S.pace, Estimate.paceSample(S.times[S.times.length - 1], l));
       const xp = (first ? 10 : 5) + (st.perfect ? 5 : 0);
       award(xp, true);
       const n = nextInUnit(UNITS[l.ui]); S.open = n ? l.ui : nextUnitIn(l.ui); save();
@@ -224,20 +228,22 @@ function runSession(items, opts){
   const el = document.createElement("div");
   el.className = "session"; el.setAttribute("role","dialog"); el.setAttribute("aria-modal","true");
   document.body.appendChild(el);
+  const nav = B.sessionNav.create(el); // session-nav.js: back/forward review, Show lesson, report
   document.body.style.overflow = "hidden";
 
   function close(){ el.remove(); document.body.style.overflow = ""; B.render(); }
   function top(){
     const pct = Math.round(idx / queue.length * 100);
-    return `<div class="s-top"><button id="quit" aria-label="Quit">${I.x}</button>
+    return `<div class="s-top"><button id="quit" aria-label="Quit">${I.x}</button>${nav.topHTML()}
       <div class="pbar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${Math.max(4,pct)}%"></span></div></div>`;
   }
   function bindQuit(){
     el.querySelector("#quit").onclick = () => {
       if (idx === 0 || confirm("Quit? Progress in this lesson won’t be saved.")) close();
     };
+    nav.bind(queue[idx]);
   }
-  function next(){ idx++; ctl = null; step(); }
+  function next(){ nav.record(); idx++; ctl = null; step(); }
   function step(){
     if (idx >= queue.length) return finish();
     const it = queue[idx];
@@ -246,7 +252,7 @@ function runSession(items, opts){
   }
   function teach(l){
     el.innerHTML = `${top()}<div class="s-body slide"><div class="kicker">${esc(opts.kicker)}</div>
-      <h2>${esc(l.title)}</h2><div class="teach">${teachHTML(l.teach)}</div>${problemsHTML(l)}</div>
+      <h2>${esc(l.title)}</h2><p class="ltime">${estLabel(estSecs(l))}</p><div class="teach">${teachHTML(l.teach)}</div>${problemsHTML(l)}</div>
       <div class="s-foot"><div class="in"><button class="cta" id="go">Continue</button></div></div>`;
     bindQuit();
     el.querySelector("#go").onclick = next;
@@ -292,6 +298,7 @@ function runSession(items, opts){
   }
   document.addEventListener("keydown", function keys(e){
     if (!document.body.contains(el)) return document.removeEventListener("keydown", keys);
+    if (nav.key(e)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (ctl && !el.querySelector("#next") && ctl.key(e)) return e.preventDefault();
     if (e.key === "Enter") { const b = el.querySelector("#next, #check:not([disabled]), #go, #done"); if (b) { e.preventDefault(); b.click(); } }
@@ -365,7 +372,7 @@ function ringSVG(pct, label){
     <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
 }
 
-Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathUnits, pathNext, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime,
+Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathUnits, pathNext, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime, estSecs, estLabel,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

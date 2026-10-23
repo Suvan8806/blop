@@ -424,6 +424,36 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .ustate svg{width:13px;height:13px;vertical-align:-1px}
 .nudge{border-color:var(--violet);background:color-mix(in srgb,var(--violet) 8%,var(--surface))}
 .nudge .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+/* session navigation, Show lesson, report (session-nav.js, report-ui.js) */
+.s-top{gap:6px}
+.s-top .pbar{margin:0 6px}
+.s-top .nflag{order:1}
+.s-top button[hidden]{display:none}
+.s-top button[disabled]{opacity:.35;cursor:default}
+.ltime{margin:-10px 0 14px;color:var(--soft);font-size:.9rem;font-weight:500}
+.nlesson{display:inline-block;margin:0 0 4px;padding:6px 0;font-size:.88rem;font-weight:700;color:var(--violet);text-decoration:underline;text-underline-offset:3px}
+.nrev-note{display:inline-block;margin:10px 0 0;padding:4px 10px;border-radius:999px;background:var(--sunk);color:var(--soft);font-size:.8rem;font-weight:700}
+.nrev .qa{pointer-events:none}
+.nsheet{position:fixed;inset:0;z-index:25;background:rgba(10,16,13,.5);display:flex;align-items:flex-end;justify-content:center}
+.nsheet-in{background:var(--surface);color:var(--ink);width:100%;max-width:620px;max-height:85vh;overflow-y:auto;border-radius:22px 22px 0 0;
+  padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));animation:up .2s ease-out}
+.nsheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.nsheet-h h2{margin:0;font-size:1.15rem;line-height:1.3}
+.nx{flex:none;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;color:var(--soft)}
+.nx svg{width:22px;height:22px}
+.nsheet-body:focus{outline:none}
+.nsheet-body:focus-visible{outline:3px solid var(--violet);outline-offset:2px;border-radius:8px}
+.nsub{margin:4px 0 12px;color:var(--soft)}
+.nchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.nchip{border:2px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:700;font-size:.92rem;background:var(--surface)}
+.nchip[aria-pressed="true"]{border-color:var(--violet);background:color-mix(in srgb,var(--violet) 14%,var(--surface))}
+.nlabel{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
+#nnote{display:block;width:100%;font:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:10px 12px;resize:vertical;min-height:76px}
+#nnote:focus-visible{outline:3px solid var(--violet);outline-offset:1px}
+.ncount{text-align:right;font-size:.78rem;color:var(--soft);margin:4px 0 10px}
+.nerr{margin:0 0 12px;color:var(--red-d);font-weight:500;line-height:1.45}
+.nerr a{color:var(--violet);font-weight:700}
+@media (prefers-color-scheme: dark){ .nerr{color:var(--red)} }
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 <link rel="stylesheet" href="/landing.css">
@@ -457,8 +487,11 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/push-logic.js"></script>
 <script src="/logic.js"></script>
 <script src="/paths.js"></script>
+<script src="/estimate.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
+<script src="/session-nav.js"></script>
+<script src="/report-ui.js"></script>
 <script src="/today.js"></script>
 <script src="/focus-ui.js"></script>
 <script src="/jobs-ui.js"></script>

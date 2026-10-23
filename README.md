@@ -141,7 +141,7 @@ that way, or the CSP blocks them. Google sign-in is a top-level navigation to su
 The service worker caches only the files in its `ASSETS` list and Google Fonts, never `/api/` or the Supabase API,
 and never stores a URL carrying sign-in parameters (`?code=`, `#access_token=`).
 Vercel serves every uploaded repo file publicly, so `.vercelignore` keeps this README, `supabase/`, `test/`,
-`.github/` and `node_modules/` out of the deployment (`package.json` and `package-lock.json` stay: the functions
+`.github/`, `scripts/` and `node_modules/` out of the deployment (`package.json` and `package-lock.json` stay: the functions
 need them for `web-push`).
 
 ## Code layout
@@ -160,9 +160,13 @@ need them for `web-push`).
 - `sync-logic.js`: sync helpers (config and input checks, redirect URLs, error messages, push scheduler). Tested in node.
 - `config.js`: Supabase URL and anon key (empty = no sync).
 - `sync.js`: sign-in and pull/merge/push with Supabase. `sync-ui.js`: the Profile sync panel.
-- `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage` table and the `push_subs` table.
+- `supabase/schema.sql`: the `progress` table and its row-level security policies, the `grade_usage`, `push_subs` and `content_reports` tables.
 - `core.js`: saved state, helpers and the lesson/practice session runner.
 - `qtypes.js`: rendering for each question type.
+- `session-nav.js`: going back to earlier steps of a session (read only), "Show lesson" and the report button. Its
+  history logic (`NavLogic`) is tested in node.
+- `report-ui.js`: the "Report a problem" sheet. `api/report.js`, `api/_lib/report-*.js`: the report function. Tested in node.
+- `estimate.js`: per-lesson time estimates and the learner's pace. Tested in node.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
 - `jobs-ui.js`: the Jobs tab.
 - `mock-prompts.js`: the mock interview questions, rubrics and outlines (browser script and node module).
@@ -332,10 +336,47 @@ nudge when the account has no synced progress). Tapping it opens blop on the Tod
 - Each device gets at most one reminder per day; to test again the same day, clear `last_sent_day` for that row in
   Supabase → Table Editor → `push_subs`.
 
+## Lesson sessions
+- **Back:** the ← in the session top bar (or the ← key) shows the previous step: a teach slide as it was, an answered
+  question read only, with your pick, the right answer and the feedback. It can't be answered again, so scoring, the
+  retry queue, missed counts and accuracy don't change. Go back as far as you like; → (or the → key) steps forward and
+  "Back to current" returns to the live step, exactly as you left it (a picked but unchecked option stays picked).
+  Arrow keys are left alone in text fields and in order/match widgets.
+- **Show lesson:** every question has a "Show lesson" link that opens the teach text of that question's own lesson
+  (practice and reviews mix lessons) in a sheet; Escape or × returns to the same place.
+- **Report a problem:** the flag opens a sheet with a reason (Wrong answer, Unclear, Typo, Other) and an optional note
+  (up to 500 characters). It sends the lesson id, the question id (or `teach`), the text on screen, the app version (the
+  service worker's cache name) and a timestamp to `POST /api/report`. Works signed out; a signed-in report also stores
+  the account id. If the server can't take it (not set up, offline), the sheet offers an email to blop@bloplearn.space
+  with the same details.
+
+`runSession` in `core.js` has five one-line hooks into `session-nav.js`: `create(el)`, `topHTML()` in the top bar,
+`bind(item)` after each step renders, `record()` when a step is done, and `key(e)` first in the key handler. The live
+step's DOM is set aside while you look back and put back afterwards, so question types need nothing extra.
+
+### Reports: how it works and setup
+- Same-origin POST, JSON only. Ids must look like `u3l2` / `u3l2q1` (or `teach`), the reason must be one of the four,
+  the note at most 500 characters, the shown text is cut at 2000. Control characters are stripped.
+- At most 20 reports a day per signed-in account, or per hashed IP when signed out. The IP is hashed with SHA-256 and a
+  salt (`REPORT_SALT`, else `CRON_SECRET`); the raw IP is never stored.
+- Rows go to `content_reports` with the service-role key (RLS on, no policies). Run `supabase/schema.sql` again to
+  create it. Optionally add `REPORT_SALT` (any long random string) for Production and Preview.
+- Without Supabase env vars or a salt the function answers 503 and the app falls back to the email link.
+- To read open reports: `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/reports.mjs [limit]`.
+  `scripts/` isn't deployed. Mark a report done in the Table Editor (`status`: `fixed` or `wontfix`).
+
+## Time estimates
+Each lesson shows how long it takes: its teach text at 200 words a minute, plus 15 s per multiple-choice or fill-the-gap
+question, 30 s per order (and any other type), 40 s per match, plus 10 s. Finishing a lesson stores actual ÷ estimated
+time (`S.pace`, percent, last 20, synced like lesson times); with at least 5 of them every estimate is scaled by their
+median, clamped to 0.5×–2.5×. Learn rows and unit headers, the lesson's first screen, Today's lessons and totals, the
+plan setup and the paths picker all use `estimate.js`, so the numbers agree. (`Plan.lessonSecs`, the median of raw
+lesson times, is no longer used by the screens.)
+
 ## Reset
 Profile → "Reset study progress" clears finished lessons, XP, the study streak, review schedule, missed questions, lesson
 times, today's counts and the study plan, on this device and (through sync) on your other devices. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js test/push-core.test.js test/push-handlers.test.js test/push-logic.test.js test/sw-push.test.js test/landing-logic.test.js test/paths.test.js`.
+Run all tests with `node --test $(ls test/*.test.js)` (Git Bash or any POSIX shell).
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.
