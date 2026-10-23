@@ -205,7 +205,7 @@ need them for `web-push`).
 - `report-ui.js`: the "Report a problem" sheet. `api/report.js`, `api/_lib/report-*.js`: the report function. Tested in node.
 - `estimate.js`: per-lesson time estimates and the learner's pace. Tested in node.
 - `today.js`: the Today tab (today's lessons, reviews, calendar, plan settings).
-- `jobs-ui.js`: the Jobs tab.
+- `jobs-ui.js`: the Job tracker (opened from Profile).
 - `mock-prompts.js`: the mock interview questions, rubrics and outlines (browser script and node module).
 - `mock.js`: pure mock-interview logic (answer checks, clamping grades, attempt history and trends). Tested in node.
 - `mock-ui.js`: the Mock tab.
@@ -255,7 +255,7 @@ two of its questions came up (or its only question, for a one-question lesson) a
 due lessons, previously missed questions first; with nothing due it offers extra practice instead.
 
 ## Jobs
-The Jobs tab logs job applications: "+1 Applied" records one for today in a single tap, and "Add details" takes a
+The Job tracker (in Profile) logs job applications: "+1 Applied" records one for today in a single tap, and "Add details" takes a
 company, role, link and date. Each application has a status (applied, OA, phone screen, onsite, offer, rejected,
 ghosted). The response rate counts applications whose status moved past Applied, except Ghosted. Links must be http(s);
 a bare address like `example.com:8080/job` gets `https://` added. Deleting an application leaves a small tombstone

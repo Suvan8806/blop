@@ -84,8 +84,10 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .banner .num{position:absolute;right:-6px;bottom:-34px;font-size:9rem;font-weight:800;line-height:1;letter-spacing:-.06em;
   color:transparent;-webkit-text-stroke:3px rgba(255,255,255,.55);pointer-events:none}
 .banner small{display:block;font-weight:500;opacity:.9;font-size:.85rem}
-.banner h2{margin:2px 0 6px;font-size:1.3rem;font-weight:800;max-width:75%;line-height:1.2}
-.banner .meta{font-size:.88rem;opacity:.95}
+.banner h2{margin:2px 0 6px;font-size:1.3rem;font-weight:800;max-width:min(75%, calc(100% - var(--numw, 84px)));line-height:1.2;hyphens:auto;overflow-wrap:break-word}
+/* Text stays clear of the outlined number in the bottom-right corner. */
+.banner .meta{display:block;font-size:.88rem;opacity:.95;max-width:calc(100% - var(--numw, 84px))}
+.banner.n2{--numw:164px}
 .ubar{height:8px;background:rgba(255,255,255,.28);border-radius:4px;margin-top:10px;max-width:70%;overflow:hidden}
 .ubar span{display:block;height:100%;background:#fff;border-radius:4px}
 .lessons{list-style:none;margin:0;padding:6px 0}
@@ -642,6 +644,9 @@ button.cl:hover{background:rgba(255,255,255,.06)}
 .ut b{font-weight:600;font-size:.96rem;line-height:1.3}
 .ut small{display:block;font-size:.8rem;color:var(--soft);margin-top:2px}
 .uf{flex:none;font-size:.82rem;font-weight:700;color:var(--soft);font-variant-numeric:tabular-nums}
+/* The banner's outlined unit number, scaled to fit a slim row; the row is not coloured, so the outline takes the unit's hue. */
+.unum{flex:none;min-width:1.4ch;text-align:right;font-size:2.1rem;font-weight:800;line-height:1;letter-spacing:-.06em;
+  color:transparent;-webkit-text-stroke:1.5px var(--hue);opacity:.75;pointer-events:none;margin-right:-4px}
 .itag{display:inline-block;padding:0 7px;border-radius:999px;border:1.5px solid var(--line);color:var(--soft);font-size:.68rem;font-weight:700;vertical-align:1px;white-space:nowrap}
 .urow-li .lessons{border-top:1px solid var(--line)}
 .deeper{margin-top:22px;border:2px dashed var(--line);border-radius:20px;background:var(--sunk);padding:14px 16px}

@@ -72,25 +72,29 @@ const lessonsHTML = u => `<ul class="lessons">${u.lessons.map(l => lessonRow(l, 
 const doneIn = u => u.lessons.filter(l => S.done[l.id]).length;
 /* "8 lessons · ~16 min" (estimate.js, scaled by the learner's pace). */
 function unitTime(u){ return `${plural(u.lessons.length, "lesson")} · ${estLabel(u.lessons.reduce((a, l) => a + estSecs(l), 0))}`; }
-/* A full unit card (Browse, and the current and next units on the path). */
+/* A full unit card (Browse, and the current and next units on the path). The big outlined number
+   is the one the card's label shows: "Unit 3" in Browse, "Unit 2 of 9" on the path. */
 function unitHTML(u, opts){
-  const o = opts || {}, done = doneIn(u), open = S.open === u.ui;
+  const o = opts || {}, done = doneIn(u), open = S.open === u.ui, no = o.no ?? u.num;
   const skipped = !o.path && planSkip().includes(u.ui);
   return `<section class="unit${o.here ? " here" : ""}" style="--hue:${u.hue}">
-    <button class="banner" data-unit="${u.ui}" aria-expanded="${open}">
+    <button class="banner${String(no).length > 1 ? " n2" : ""}" data-unit="${u.ui}" aria-expanded="${open}">
+      <span class="num" aria-hidden="true">${no}</span>
       <small>${esc(o.label || `Unit ${u.num}`)}</small><h2>${esc(short(u.title))}</h2>
       <span class="meta">${o.state ? `<span class="ustate">${o.state}</span> · ` : ""}${unitTime(u)}${done ? ` · ${done} done` : ""}${
         skipped ? (hasFocus() ? " · not on your path" : " · skipped in your plan") : ""}</span>
       <div class="ubar"><span style="width:${done / u.lessons.length * 100}%"></span></div>
     </button>${open ? lessonsHTML(u) : ""}</section>`;
 }
-/* A slim unit row (the rest of the path, Go deeper): title, state and a small "3/17"; tapping opens it in place. */
-function unitRowHTML(u, state, tag){
+/* A slim unit row (the rest of the path, Go deeper): title, state, a small "3/17" and the unit's
+   number (its place on the path, else "Unit N" in its subject); tapping opens it in place. */
+function unitRowHTML(u, state, tag, no){
   const open = S.open === u.ui, done = doneIn(u), all = done === u.lessons.length;
   return `<li class="urow-li"><button class="urow${all ? " udone" : ""}" data-unit="${u.ui}" aria-expanded="${open}" style="--hue:${u.hue}">
       <span class="udot" aria-hidden="true">${all ? I.check : ""}</span>
       <span class="ut"><b>${esc(short(u.title))}</b>${tag ? ` <span class="itag">${tag}</span>` : ""}<small>${state}</small></span>
-      <span class="uf">${done}/${u.lessons.length}</span></button>${open ? lessonsHTML(u) : ""}</li>`;
+      <span class="uf">${done}/${u.lessons.length}</span>
+      <span class="unum" aria-hidden="true">${no ?? u.num}</span></button>${open ? lessonsHTML(u) : ""}</li>`;
 }
 function practiceHTML(){
   if (Object.keys(S.done).length < 3) return "";
@@ -138,11 +142,11 @@ function pathHTML(){
         : `<p style="margin:0"><b>Path complete.</b> Choose a new goal, or keep your lessons fresh with reviews.</p>`}
       <button class="linkish soft" id="pathedit">Edit path</button></div>`;
   const big = [cur, nextUi].filter(ui => ui !== null);
-  const cards = big.map(ui => unitHTML(UNITS[ui], { path: true, here: ui === cur, label: `Unit ${idx(ui)} of ${n}`,
+  const cards = big.map(ui => unitHTML(UNITS[ui], { path: true, here: ui === cur, no: idx(ui), label: `Unit ${idx(ui)} of ${n}`,
     state: ui === cur ? "In progress" : "Up next" })).join("");
   const rest = order.filter(ui => !big.includes(ui));
   const restHTML = rest.length ? `<div class="panel ulist"><h3 class="subhead">${rest.length === 1 ? "1 more unit" : `${rest.length} more units`}</h3>
-      <ul class="urows">${rest.map(ui => unitRowHTML(UNITS[ui], unitState(UNITS[ui], order, cur, nextUi), isDeep(UNITS[ui].title) ? "in depth" : "")).join("")}</ul></div>` : "";
+      <ul class="urows">${rest.map(ui => unitRowHTML(UNITS[ui], unitState(UNITS[ui], order, cur, nextUi), isDeep(UNITS[ui].title) ? "in depth" : "", idx(ui))).join("")}</ul></div>` : "";
   const known = S.focus.known.filter(t => UNITS.some(u => u.title === t));
   return `${head}${cards}${restHTML}${practiceHTML()}${deeperHTML()}
     ${known.length ? `<div class="panel"><h3>Skipped (you know these)</h3><p>${known.map(t => esc(short(t))).join(", ")}. Still in Browse if you want them.</p>
