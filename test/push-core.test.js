@@ -129,6 +129,22 @@ test("active plan with a learning focus: the target covers only the path", () =>
   assert.equal(C.goalStatus({ plan, focus: { goals: "x" }, skip: [] }, DAY, UNITS).goal, Math.ceil(all / 10));
 });
 
+test("the reminder's target follows Go deeper exactly as the app does (old focus = deep)", () => {
+  const P = require("../paths.js"), Plan = require("../plan.js");
+  const plan = { id: "p", start: DAY, days: 10, knownUnits: UNITS.length, targets: {}, updatedAt: 1 };
+  const goalOf = focus => C.goalStatus({ plan, focus, skip: [] }, DAY, UNITS).goal;
+  const lessonsOf = focus => Plan.planOrder(UNITS, [], P.focusOrder(UNITS, focus), P.PREREQS).length;
+  const base = { goals: ["transformers"], known: [], updatedAt: 1 };
+  const on = { ...base, deep: true }, off = { ...base, deep: false };
+  assert.ok(lessonsOf(off) < lessonsOf(on));
+  assert.equal(goalOf(on), Math.ceil(lessonsOf(on) / 10));
+  assert.equal(goalOf(off), Math.ceil(lessonsOf(off) / 10));
+  assert.equal(goalOf(base), goalOf(on)); // saved before Go deeper existed: unchanged
+  // A multi-subject path is interleaved, and the reminder counts the same lessons in the same order.
+  const mix = { goals: ["essentials"], known: [], deep: false, updatedAt: 1 };
+  assert.equal(goalOf(mix), Math.ceil(lessonsOf(mix) / 10));
+});
+
 test("active plan: today's plan target and lessons done today, like the Today tab", () => {
   const done = Object.fromEntries(ids(2).map(id => [id, true]));
   const doneOn = Object.fromEntries(ids(2).map(id => [id, DAY]));

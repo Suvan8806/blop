@@ -102,7 +102,7 @@ test("XP is a per-device counter; the total is the sum", () => {
 test("focus is a known field; clean checks its shape and resetProgress keeps it", () => {
   assert.ok(St.KNOWN_KEYS.includes("focus"));
   assert.deepEqual(St.clean({ focus: { goals: ["cnn", "cnn", 3, "x".repeat(200)], known: ["Start Here"], updatedAt: 4, extra: 1 } }).focus,
-    { goals: ["cnn"], known: ["Start Here"], updatedAt: 4 });
+    { goals: ["cnn"], known: ["Start Here"], deep: true, track: null, updatedAt: 4 });
   assert.equal(St.clean({ focus: [1] }).focus, null);
   assert.equal("focus" in St.clean({}), false);
   const many = Array.from({ length: 300 }, (_, i) => `t${i}`);
@@ -110,4 +110,15 @@ test("focus is a known field; clean checks its shape and resetProgress keeps it"
   assert.deepEqual([c.goals.length, c.known.length, c.updatedAt], [St.LIMITS.FOCUS_GOALS, St.LIMITS.FOCUS_KNOWN, 0]);
   const f = { goals: ["rag"], known: [], updatedAt: 2 };
   assert.deepEqual(St.resetProgress({ ...full(), focus: f }, 1000).focus, f);
+});
+
+test("focus.deep and focus.track: kept when valid; an old focus without deep reads as deep (its path doesn't shrink)", () => {
+  const c = f => St.clean({ focus: f }).focus;
+  assert.equal(c({ goals: ["rag"] }).deep, true);
+  assert.equal(c({ goals: ["rag"], deep: false }).deep, false);
+  assert.equal(c({ goals: ["rag"], deep: true }).deep, true);
+  assert.equal(c({ goals: ["rag"], deep: "no" }).deep, true);
+  assert.equal(c({ goals: ["rag"], track: "llm" }).track, "llm");
+  for (const t of ["x", "", 3, null, "LLM", "llm ".repeat(40)]) assert.equal(c({ goals: ["rag"], track: t }).track, null);
+  assert.deepEqual(St.FOCUS_TRACKS, ["ml", "llm", "code", "sd", "essentials"]);
 });

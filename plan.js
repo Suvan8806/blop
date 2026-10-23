@@ -10,16 +10,63 @@ const KEEP_TARGET_DAYS = 400;
 /* Lesson ids in the plan, in curriculum order, leaving out skipped units. units is indexed by unit index;
    a unit's optional display position `pos` (from logic.js) orders it, so the plan follows the Learn tab.
    unitOrder (optional): unit indices in the order to study them (a learning path from paths.js); only those
-   units are planned, in that order. */
-function planOrder(units, skip, unitOrder) {
+   units are planned, in that order. prereqs (optional, paths.js PREREQS): with it, a path that spans more than one
+   subject is interleaved (see interleave), so a learner doesn't go weeks without coding. */
+function planOrder(units, skip, unitOrder, prereqs) {
   const skipped = new Set(skip || []);
   if (Array.isArray(unitOrder)) {
     const seen = new Set();
-    return unitOrder.filter(ui => units[ui] && !skipped.has(ui) && !seen.has(ui) && seen.add(ui)).flatMap(ui => units[ui].lessons.map(l => l.id));
+    const list = unitOrder.filter(ui => units[ui] && !skipped.has(ui) && !seen.has(ui) && seen.add(ui)).map(ui => units[ui]);
+    return prereqs && typeof prereqs === "object" ? interleave(list, prereqs) : list.flatMap(u => u.lessons.map(l => l.id));
   }
   return units.map((u, ui) => [u, ui]).filter(([, ui]) => !skipped.has(ui))
     .sort(([a, ai], [b, bi]) => (a.pos ?? ai) - (b.pos ?? bi))
     .flatMap(([u]) => u.lessons.map(l => l.id));
+}
+
+/* A path's lesson ids with its subjects interleaved: each turn takes the next CHUNK lessons (fewer at a unit's end)
+   from the subject furthest behind its share of the path's lessons, ties going to the subject that comes first on
+   the path. Within a subject the path's order holds, and a unit only starts once every unit on the path it builds on
+   (prereqs, followed through units that aren't on the path) is fully placed. A subject that had to wait isn't owed
+   the turns it missed (its share restarts from the others' progress), so it rejoins the rotation instead of arriving
+   in one long burst. A single-subject path is unchanged. */
+const CHUNK = 3;
+function interleave(list, prereqs) {
+  const units = list.filter(u => u.lessons.length);
+  const subjects = [...new Set(units.map(u => u.tr))];
+  if (subjects.length < 2) return units.flatMap(u => u.lessons.map(l => l.id));
+  const onPath = new Set(units.map(u => u.title));
+  const memo = new Map();
+  const needs = t => { // titles on the path that t builds on, transitively
+    if (memo.has(t)) return memo.get(t);
+    const out = new Set();
+    memo.set(t, out);
+    (prereqs[t] || []).forEach(p => { if (onPath.has(p)) out.add(p); needs(p).forEach(x => out.add(x)); });
+    return out;
+  };
+  // share: the fraction of the subject's lessons placed so far, as a running tag (weighted fair queueing).
+  const queues = subjects.map(s => ({ units: units.filter(u => u.tr === s), at: 0, li: 0, share: 0 }));
+  queues.forEach(q => { q.total = q.units.reduce((a, u) => a + u.lessons.length, 0); });
+  const finished = new Set(), out = [];
+  const head = q => q.units[q.at];
+  const ready = q => !!head(q) && (q.li > 0 || [...needs(head(q).title)].every(t => finished.has(t)));
+  let clock = 0;
+  const tag = q => Math.max(q.share, clock);
+  while (queues.some(head)) {
+    let pick = queues.filter(ready).sort((a, b) => tag(a) - tag(b))[0];
+    // Only reachable with an order that isn't topological: take the earliest unit on the path instead.
+    if (!pick) pick = queues.filter(head).sort((a, b) => units.indexOf(head(a)) - units.indexOf(head(b)))[0];
+    clock = tag(pick);
+    let n = 0;
+    while (n < CHUNK && head(pick)) {
+      const u = head(pick);
+      out.push(u.lessons[pick.li].id);
+      pick.li++; n++;
+      if (pick.li >= u.lessons.length) { finished.add(u.title); pick.at++; pick.li = 0; break; }
+    }
+    pick.share = clock + n / pick.total;
+  }
+  return out;
 }
 
 /* Units added after a plan was made (index >= knownUnits) count as skipped until the user ticks them,
@@ -253,6 +300,6 @@ function foldLine(line) {
   return parts.join("\r\n");
 }
 
-const Plan = { MIN_START, MAX_START, MAX_DAYS, KEEP_TARGET_DAYS, isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, projectFinish, PACE_DAYS, MIN_PACE_DAYS, LATE_FACTOR, preview, dayLabel, dateLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
+const Plan = { CHUNK, interleave, MIN_START, MAX_START, MAX_DAYS, KEEP_TARGET_DAYS, isActive, create, ended, estimateStartRemaining, pastTarget, aheadBy, recordTarget, monthInfo, monthOf, dayStatus, planOrder, effectiveSkip, setUnit, migratePlan, UNITS_BEFORE_KNOWN, lessonSecs, minutesFor, spread, schedule, projectFinish, PACE_DAYS, MIN_PACE_DAYS, LATE_FACTOR, preview, dayLabel, dateLabel, ymd, reminderICS, DEFAULT_LESSON_SECS };
 if (typeof module !== "undefined" && module.exports) module.exports = Plan; else root.Plan = Plan;
 })(typeof window !== "undefined" ? window : globalThis);

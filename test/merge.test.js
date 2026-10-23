@@ -305,3 +305,14 @@ test("focus: newer updatedAt wins as one piece, null never wins, future stamps a
   const ahead = M.merge({ focus: f(["cnn"], NOW) }, { focus: f(["dp"], NOW + 50 * 864e5) }, NOW);
   assert.equal(ahead.focus.updatedAt, NOW + M.MAX_SKEW_MS);
 });
+
+test("focus: Go deeper and the track travel inside the focus, newer wins, with no merge logic of their own", () => {
+  const f = (deep, track, at) => ({ goals: ["rag"], known: [], deep, track, updatedAt: at });
+  assert.deepEqual(sym({ focus: f(true, "llm", 5) }, { focus: f(false, "llm", 9) }).focus, f(false, "llm", 9));
+  assert.deepEqual(sym({ focus: f(false, null, 9) }, { focus: f(true, "llm", 5) }).focus, f(false, null, 9));
+  // A device on an older build sends a focus without deep: kept as sent (it reads as deep on load).
+  const old = { goals: ["rag"], known: [], updatedAt: 12 };
+  assert.deepEqual(sym({ focus: f(false, "llm", 9) }, { focus: old }).focus, old);
+  const capped = M.merge({ focus: f(false, "sd", NOW + 50 * 864e5) }, {}, NOW).focus;
+  assert.deepEqual([capped.deep, capped.track, capped.updatedAt], [false, "sd", NOW + M.MAX_SKEW_MS]);
+});

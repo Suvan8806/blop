@@ -78,7 +78,22 @@ function totals(counts) {
   { units: 0, lessons: 0, questions: 0 });
 }
 
-const LandingLogic = { FLAG_KEY, hasProgress, shouldShowLanding, afterLandingStep, cleanUrl, subjectCounts, totals };
+/* Per subject, the core path's estimated minutes (units isDeep rejects left out) and whether it has optional deep
+   dives: { [subject]: { minutes, deep } }. secsOf: lesson -> estimated seconds (estimate.js). */
+function corePath(units, subjects, isDeep, secsOf) {
+  const deepOf = typeof isDeep === "function" ? isDeep : () => false;
+  const secs = typeof secsOf === "function" ? secsOf : () => 120;
+  const out = {};
+  (subjects || []).forEach(([id]) => { out[id] = { secs: 0, deep: false }; });
+  (Array.isArray(units) ? units : []).forEach(u => {
+    if (!u || !out[u.tr]) return;
+    if (deepOf(u.title)) { out[u.tr].deep = true; return; }
+    out[u.tr].secs += (Array.isArray(u.lessons) ? u.lessons : []).reduce((a, l) => a + (Number(secs(l)) || 0), 0);
+  });
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, { minutes: Math.round(v.secs / 60), deep: v.deep }]));
+}
+
+const LandingLogic = { FLAG_KEY, hasProgress, shouldShowLanding, afterLandingStep, cleanUrl, subjectCounts, totals, corePath };
 if (typeof module !== "undefined" && module.exports) module.exports = LandingLogic; else root.LandingLogic = LandingLogic;
 
 /* In the browser this file loads in <head>, so the decision is made before anything paints: html.lp-on shows

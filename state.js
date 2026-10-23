@@ -48,12 +48,17 @@ function cleanMap(m, fix, max) {
   return out;
 }
 
-/* The learning focus { goals: [goal id], known: [unit title], updatedAt }, or null when none was ever picked.
-   Only the shape is checked here; paths.js (cleanFocus) also drops goal ids and titles this build doesn't have. */
+/* The picker tracks a focus can name (paths.js TRACKS). */
+const FOCUS_TRACKS = ["ml", "llm", "code", "sd", "essentials"];
+/* The learning focus { goals: [goal id], known: [unit title], deep, track, updatedAt }, or null when none was ever
+   picked. deep (Go deeper: deep-dive units on the path) is a boolean; a focus saved before it existed has none and
+   reads as true, so an existing path never shrinks. track is a FOCUS_TRACKS id or null. Only the shape is checked
+   here; paths.js (cleanFocus) also drops goal ids and titles this build doesn't have. */
 function cleanFocus(f) {
   if (!isObj(f)) return null;
   const strings = (l, max) => [...new Set((Array.isArray(l) ? l : []).filter(x => typeof x === "string" && x.length > 0 && x.length <= LIMITS.FOCUS_TEXT))].slice(0, max);
-  return { goals: strings(f.goals, LIMITS.FOCUS_GOALS), known: strings(f.known, LIMITS.FOCUS_KNOWN), updatedAt: stamp(f.updatedAt) };
+  return { goals: strings(f.goals, LIMITS.FOCUS_GOALS), known: strings(f.known, LIMITS.FOCUS_KNOWN),
+    deep: typeof f.deep === "boolean" ? f.deep : true, track: FOCUS_TRACKS.includes(f.track) ? f.track : null, updatedAt: stamp(f.updatedAt) };
 }
 
 function sumXp(log) { return Object.values(isObj(log) ? log : {}).reduce((a, v) => a + (Number.isFinite(v) ? v : 0), 0); }
@@ -120,7 +125,7 @@ function withSettings(s, patch, now) {
 /* A reminder time "HH:MM", or the default. */
 function validTime(t) { return typeof t === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : DEFAULT_REMIND; }
 
-const BlopState = { DEFAULT_REMIND, SETTINGS_KEYS, KNOWN_KEYS, BASE_XP_KEY, LIMITS, progressDefaults, resetProgress,
+const BlopState = { DEFAULT_REMIND, FOCUS_TRACKS, SETTINGS_KEYS, KNOWN_KEYS, BASE_XP_KEY, LIMITS, progressDefaults, resetProgress,
   withSettings, validTime, clean, cleanFocus, sumXp, xpLogOf, addXp };
 if (typeof module !== "undefined" && module.exports) module.exports = BlopState; else root.BlopState = BlopState;
 })(typeof window !== "undefined" ? window : globalThis);

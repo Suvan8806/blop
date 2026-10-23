@@ -124,7 +124,7 @@ function goalStatus(data, day, units) {
       // With a learning focus the plan covers the path (paths.js), exactly as planIds() in core.js.
       const path = Paths.focusOrder(units, data.focus);
       const skip = Array.isArray(data.skip) ? data.skip.filter(x => Number.isInteger(x) && x >= 0 && x < units.length) : [];
-      const order = path ? Plan.planOrder(units, [], path) : Plan.planOrder(units, Plan.effectiveSkip(skip, plan.knownUnits, units.length));
+      const order = path ? Plan.planOrder(units, [], path, Paths.PREREQS) : Plan.planOrder(units, Plan.effectiveSkip(skip, plan.knownUnits, units.length));
       const sch = Plan.schedule({ order, done: s.done, doneOn: s.doneOn, today: day, start: plan.start, days: plan.days });
       if (sch.remaining + sch.doneToday > 0) return status(sch.doneToday, Math.max(1, sch.todayTarget), streak, true);
     }

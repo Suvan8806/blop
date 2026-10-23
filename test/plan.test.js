@@ -392,3 +392,71 @@ test("a bounded plan always schedules quickly", () => {
   const s = Plan.schedule({ order: ["a", "b"], done: {}, doneOn: {}, today: Plan.MIN_START, start: ok.start, days: ok.days });
   assert.equal(s.plan.length, Plan.MAX_DAYS);
 });
+
+/* ---------- interleaving subjects on a multi-subject path ---------- */
+{
+  const P = require("../paths.js");
+  const { loadUnits } = require("../api/_lib/curriculum.js");
+  const UNITS = loadUnits();
+  const unitOf = id => UNITS[+id.slice(1, id.indexOf("l"))];
+  const subjOf = id => unitOf(id).tr;
+
+  test("a single-subject path keeps its order with or without prereqs", () => {
+    const order = P.focusOrder(UNITS, { goals: ["cnn"], deep: true });
+    assert.deepEqual(Plan.planOrder(UNITS, [], order, P.PREREQS), Plan.planOrder(UNITS, [], order));
+  });
+
+  test("full prep interleaves subjects: coding and system design start in the first days, not after 260 lessons", () => {
+    const order = P.focusOrder(UNITS, { goals: ["all"], deep: true });
+    const ids = Plan.planOrder(UNITS, [], order, P.PREREQS);
+    const flat = Plan.planOrder(UNITS, [], order);
+    assert.deepEqual([...ids].sort(), [...flat].sort(), "same lessons");
+    assert.equal(new Set(ids).size, ids.length);
+    const firstOf = (list, s) => list.findIndex(id => subjOf(id) === s);
+    assert.ok(firstOf(ids, "code") < 40, `first coding lesson at ${firstOf(ids, "code")}`);
+    assert.ok(firstOf(ids, "sd") < 10, `first system design lesson at ${firstOf(ids, "sd")}`);
+    assert.ok(firstOf(flat, "code") > 100, "the uninterleaved order really did wait");
+    // Coding (36 of 398 lessons) keeps coming back, about every 3 to 6 days at ~10 lessons a day, never weeks apart.
+    const at = ids.map((id, i) => [i, subjOf(id)]).filter(([, t]) => t === "code").map(([i]) => i);
+    const gaps = at.slice(1).map((v, i) => v - at[i]);
+    assert.ok(Math.max(...gaps) < 70, `code: largest gap ${Math.max(...gaps)}`);
+  });
+
+  test("interleaving keeps lesson order within a unit, subject order, and every prerequisite first", () => {
+    const order = P.focusOrder(UNITS, { goals: ["all"], deep: true });
+    const ids = Plan.planOrder(UNITS, [], order, P.PREREQS);
+    const pos = new Map(ids.map((id, i) => [id, i]));
+    for (const u of UNITS) u.lessons.slice(1).forEach((l, i) => assert.ok(pos.get(u.lessons[i].id) < pos.get(l.id), l.id));
+    const firstAt = u => pos.get(u.lessons[0].id), lastAt = u => pos.get(u.lessons.at(-1).id);
+    for (const u of UNITS) {
+      (P.PREREQS[u.title] || []).forEach(t => {
+        const p = UNITS.find(x => x.title === t);
+        assert.ok(lastAt(p) < firstAt(u), `${t} is finished before ${u.title} starts`);
+      });
+    }
+    for (const s of ["ml", "code", "sd"]) {
+      const us = [...new Set(ids.filter(id => subjOf(id) === s).map(id => unitOf(id).ui))];
+      assert.deepEqual(us, order.filter(ui => UNITS[ui].tr === s));
+    }
+  });
+
+  test("the essentials mix subjects from day one, in chunks of up to CHUNK lessons", () => {
+    const ids = Plan.planOrder(UNITS, [], P.focusOrder(UNITS, { goals: ["essentials"], deep: false }), P.PREREQS);
+    assert.equal(Plan.CHUNK, 3);
+    assert.equal(subjOf(ids[0]), "ml", "ties go to the subject that comes first on the path");
+    assert.deepEqual(ids.slice(1, 4).map(subjOf), ["sd", "sd", "sd"], "system design shows up on day one, a chunk at a time");
+    const sd = ids.map((id, i) => [i, subjOf(id)]).filter(([, t]) => t === "sd").map(([i]) => i);
+    assert.ok(sd.at(-1) > ids.length / 2, "system design is spread through the path, not front-loaded");
+  });
+
+  test("interleave handles a junk (non-topological) order and empty units without looping", () => {
+    const us = [
+      { ui: 0, title: "A", tr: "ml", lessons: [{ id: "a0" }, { id: "a1" }] },
+      { ui: 1, title: "B", tr: "sd", lessons: [{ id: "b0" }] },
+      { ui: 2, title: "C", tr: "ml", lessons: [] }
+    ];
+    assert.deepEqual(Plan.interleave(us, { A: ["B"], B: ["A"] }).sort(), ["a0", "a1", "b0"]);
+    assert.deepEqual(Plan.interleave(us, { A: ["B"] }), ["b0", "a0", "a1"]);
+    assert.deepEqual(Plan.interleave([], {}), []);
+  });
+}

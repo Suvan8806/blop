@@ -168,9 +168,9 @@ test("display order: each placed unit follows its base, with only units placed a
   after("Deep Dive: RL Foundations", "Reinforcement Learning");
   Object.entries(L.UNIT_AFTER).forEach(([deep, base]) => after(deep, base));
   assert.deepEqual(ml.slice(0, 11), ["Start Here", "Python Refresher", "Math Primer", "Foundations", "Deep Dive: Probability & Stats",
-    "Deep Dive: Evaluation Metrics", "Architectures", "Deep Dive: CNN Internals", "Deep Dive: Backprop", "Deep Dive: Optimizers",
-    "Deep Dive: Regularization"]);
-  assert.equal(ml[ml.length - 1], "Practical ML Engineering");
+    "Deep Dive: Evaluation Metrics", "Classical ML Algorithms", "Architectures", "Deep Dive: CNN Internals", "Deep Dive: Backprop",
+    "Deep Dive: Optimizers"]);
+  assert.equal(ml[ml.length - 1], "Deep Dive: Post-training LLMs");
   assert.equal(ml.filter(t => t.startsWith("Deep Dive:")).length, 15);
 });
 

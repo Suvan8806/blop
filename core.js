@@ -130,7 +130,10 @@ function toast(msg){
 function unlocked(l){ return l.li === 0 || !!S.done[UNITS[l.ui].lessons[l.li - 1].id]; }
 function nextInUnit(u){ return u.lessons.find(l => !S.done[l.id]); }
 function nextOverall(){ return ALL.find(l => !S.done[l.id] && unlocked(l)); }
-function unitLabel(ui){ const u = UNITS[ui]; return `${L.subjectName(u.tr)} · Unit ${u.num}`; }
+/* A unit's name wherever it's mentioned (Today's lesson rows): its title, without the "Deep Dive: " prefix. */
+function unitLabel(ui){ const u = UNITS[ui]; return window.Paths ? Paths.shortTitle(u.title) : u.title; }
+/* The lesson screen's kicker: "Start Here · Lesson 1 of 1". */
+function lessonKicker(l){ const u = UNITS[l.ui]; return `${unitLabel(l.ui)} · Lesson ${l.li + 1} of ${u.lessons.length}`; }
 
 const I = {
   flame:'<svg viewBox="0 0 24 24" fill="#E3A019"><path d="M12 2s5 4.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.8 2-5 .3 1.6 1 2.6 2 3 0-3 1-6 1-8z"/></svg>',
@@ -155,7 +158,7 @@ function startLesson(l){
   const items = [{ k:"teach", l }, ...l.qs.map(q => ({ k:"q", q }))];
   const startedAt = Date.now();
   runSession(items, {
-    kicker: `${unitLabel(l.ui)} · ${UNITS[l.ui].title}`,
+    kicker: lessonKicker(l),
     onFinish: (st) => {
       const first = !S.done[l.id];
       S.done[l.id] = true;
@@ -312,8 +315,24 @@ function activePlan(){ return window.Plan && Plan.isActive(S.plan) ? S.plan : nu
 /* ---------- learning focus (paths.js) ---------- */
 function focusOrderOf(focus){ return window.Paths ? Paths.focusOrder(UNITS, focus) : null; }
 function hasFocus(){ return !!(window.Paths && Paths.isActive(S.focus)); }
-/* Unit indices on the learner's path, in study order (units marked known left out), or null without a focus. */
-function pathUnits(){ return hasFocus() ? focusOrderOf(S.focus) : null; }
+/* The path's lesson ids in study order: the path's units, with subjects interleaved when it spans more than one
+   (plan.js interleave). The reminder cron builds the same order (api/_lib/push-core.js). Cached per focus. */
+let pathCache = { key: null, ids: null };
+function pathIds(){
+  if (!hasFocus() || !window.Plan) return null;
+  const key = JSON.stringify(S.focus);
+  if (pathCache.key !== key) {
+    const order = focusOrderOf(S.focus);
+    pathCache = { key, ids: order ? Plan.planOrder(UNITS, [], order, Paths.PREREQS) : null };
+  }
+  return pathCache.ids;
+}
+/* Unit indices on the learner's path, in the order they're first studied (units marked known left out), or null
+   without a focus. */
+function pathUnits(){
+  const ids = pathIds();
+  return ids ? [...new Set(ids.map(id => BY_ID[id].ui))] : null;
+}
 /* Units left out of the plan. With a focus: every unit not on the path. Otherwise the ones the user unticked,
    plus units added since the plan was made. */
 function planSkip(){
@@ -322,13 +341,18 @@ function planSkip(){
   return activePlan() ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
 }
 /* Lesson ids the plan covers, in study order: the path with a focus, otherwise the units in display order. */
-function planIds(){ return window.Plan ? Plan.planOrder(UNITS, planSkip(), pathUnits() || undefined) : []; }
+function planIds(){ return window.Plan ? (pathIds() || Plan.planOrder(UNITS, planSkip())) : []; }
 /* The next unfinished lesson on the path, or null (no focus, or the path is finished). */
 function pathNext(){
-  const order = pathUnits();
-  if (!order) return null;
-  for (const ui of order) { const l = UNITS[ui].lessons.find(x => !S.done[x.id]); if (l) return l; }
-  return null;
+  const ids = pathIds();
+  const id = ids && ids.find(x => !S.done[x]);
+  return id ? BY_ID[id] : null;
+}
+/* Without a goal: the next lesson in the chosen subject's core units (display order), else anywhere. */
+function nextCore(){
+  const core = L.unitsFor(UNITS, S.subject).filter(u => !(window.Paths && Paths.isDeep(u.title)));
+  for (const u of core) { const l = u.lessons.find(x => !S.done[x.id]); if (l && unlocked(l)) return l; }
+  return nextOverall();
 }
 /* Today's schedule for the active plan, or null. Also remembers today's target for the calendar. */
 function sched(){
@@ -354,14 +378,15 @@ function dayGoal(){
 function nextUp(){
   const s = sched();
   const id = s && s.plan.flatMap(d => d.ids)[0];
-  return id ? BY_ID[id] : pathNext() || nextOverall();
+  return id ? BY_ID[id] : pathNext() || nextCore();
 }
+/* Header pills: today's count, and the streak once it's 2 days or more. XP lives in Profile and on the finish screen. */
+const STREAK_PILL_FROM = 2;
 function statsRow(extra){
-  const g = dayGoal();
+  const g = dayGoal(), streak = liveStreak();
   return `<div class="stats">
-    <span class="pill" title="Day streak">${I.flame}${liveStreak()}</span>
-    <span class="pill" title="Total XP">${I.bolt}${S.xp} XP</span>
-    <span class="pill" title="${g.plan ? "New lessons today in your plan" : "Lessons today"}">${I.target}${g.done}/${g.goal} today</span>${extra || ""}
+    ${streak >= STREAK_PILL_FROM ? `<span class="pill" title="Day streak">${I.flame}${streak}-day streak</span>` : ""}
+    <span class="pill" title="${g.plan ? "New lessons today in your plan" : "Lessons today"}">${I.target}${g.done} of ${g.goal} today</span>${extra || ""}
   </div>`;
 }
 function ringSVG(pct, label){
@@ -372,7 +397,7 @@ function ringSVG(pct, label){
     <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
 }
 
-Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathUnits, pathNext, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime, estSecs, estLabel,
+Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathIds, pathUnits, pathNext, nextCore, lessonKicker, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime, estSecs, estLabel,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

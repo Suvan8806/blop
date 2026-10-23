@@ -121,3 +121,29 @@ test("after signing in from the landing: the picker only when the synced state h
   // Tombstones and an ended plan are not progress.
   assert.equal(LL.afterLandingStep({ ...empty, jobs: [{ id: "j1", deleted: true }], plan: { ended: true } }, { viaSignIn: true }), "picker");
 });
+
+test("corePath: core minutes per subject leave deep dives out and flag that they exist", () => {
+  const subs = [["ml", "ML"], ["sd", "System Design"]];
+  const units = [
+    { tr: "ml", title: "Foundations", lessons: [{}, {}] },
+    { tr: "ml", title: "Deep Dive: Backprop", lessons: [{}, {}, {}] },
+    { tr: "sd", title: "System Design", lessons: [{}] },
+    { tr: "nope", title: "X", lessons: [{}] }, null
+  ];
+  assert.deepEqual(LL.corePath(units, subs, t => t.startsWith("Deep Dive:"), () => 90),
+    { ml: { minutes: 3, deep: true }, sd: { minutes: 2, deep: false } });
+  assert.deepEqual(LL.corePath(null, subs), { ml: { minutes: 0, deep: false }, sd: { minutes: 0, deep: false } });
+  // The real curriculum: ML's core path is a few hours, with deep dives on top.
+  const P = require("../paths.js"), E = require("../estimate.js");
+  const prev = global.window;
+  global.window = { CURRICULUM: undefined };
+  for (const f of ["../content.js", "../content-code.js", "../content-sd.js", "../content-ml-deep.js", "../content-extra.js"]) {
+    delete require.cache[require.resolve(f)]; require(f);
+  }
+  const real = Logic.buildUnits(global.window.CURRICULUM);
+  global.window = prev;
+  const c = LL.corePath(real, Logic.SUBJECTS, P.isDeep, l => E.lessonSecs(l));
+  assert.equal(c.ml.deep, true);
+  assert.equal(c.code.deep, false);
+  assert.ok(c.ml.minutes > 120 && c.ml.minutes < 600, String(c.ml.minutes));
+});

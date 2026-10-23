@@ -17,6 +17,8 @@ const UNIT_AFTER = {
   "Math Primer": "Python Refresher",
   "Deep Dive: Probability & Stats": "Foundations",
   "Deep Dive: Evaluation Metrics": "Foundations",
+  // Classical ML needs nothing from neural nets; teach it before Architectures, as most courses do.
+  "Classical ML Algorithms": "Deep Dive: Evaluation Metrics",
   "Deep Dive: CNN Internals": "Architectures",
   "Deep Dive: Backprop": "Deep Dive: CNN Internals",
   "Deep Dive: Optimizers": "Deep Dive: Backprop",
@@ -30,7 +32,10 @@ const UNIT_AFTER = {
   "Deep Dive: RL Foundations": "Reinforcement Learning",
   // KL's uses (RLHF, PPO, distillation) are taught by then; Fine-tuning and Post-training follow it.
   "Deep Dive: Information Theory": "Deep Dive: RL Foundations",
-  "Deep Dive: Post-training LLMs": "Fine-tuning in Practice"
+  "Deep Dive: Post-training LLMs": "Fine-tuning in Practice",
+  // Hands-on HuggingFace (load, tokenize, pipeline, LoRA project) before the post-training deep dive.
+  // Children are placed in index order, so this yields Fine-tuning > Practical ML Eng (ui 15) > Post-training (ui 46).
+  "Practical ML Engineering": "Fine-tuning in Practice"
 };
 
 const str = v => (typeof v === "string" ? v : "");

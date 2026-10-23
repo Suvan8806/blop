@@ -111,7 +111,7 @@ test("an old save has no focus; a focus loads cleaned against this build", () =>
   assert.equal(boot({ done: { u0l0: true } }).B.S.focus, null);
   assert.equal(boot(undefined).B.S.focus, null);
   const { B } = boot({ focus: { goals: ["cnn", "bogus", "cnn"], known: ["Python Refresher", "No Such Unit", 7], updatedAt: 9, extra: 1 } });
-  eq(B.S.focus, { goals: ["cnn"], known: ["Python Refresher"], updatedAt: 9 });
+  eq(B.S.focus, { goals: ["cnn"], known: ["Python Refresher"], deep: true, track: null, updatedAt: 9 });
   assert.equal(B.hasFocus(), true);
   assert.equal(boot({ focus: "x" }).B.S.focus, null);
   assert.equal(boot({ focus: { goals: [] , updatedAt: 3 } }).B.hasFocus(), false);
@@ -149,7 +149,66 @@ test("with a focus and no plan, next-up is the first unfinished lesson on the pa
 test("a synced focus merges by updatedAt and survives a reset", () => {
   const { B } = boot({ focus: { goals: ["cnn"], known: [], updatedAt: 5 } });
   B.replaceState(require("../merge.js").merge(JSON.parse(JSON.stringify(B.S)), { focus: { goals: ["rag"], known: ["Start Here"], updatedAt: 9 } }));
-  eq(B.S.focus, { goals: ["rag"], known: ["Start Here"], updatedAt: 9 });
+  eq(B.S.focus, { goals: ["rag"], known: ["Start Here"], deep: true, track: null, updatedAt: 9 });
   B.reset();
   eq(B.S.focus.goals, ["rag"]);
+});
+
+/* ---------- Go deeper and the reworked path order ---------- */
+test("an existing user's old focus and plan don't shrink: deep reads as on, same lessons and the same target today", () => {
+  const plan = { id: "p", start: todayNum() - 2, days: 30, knownUnits: 53, startRemaining: 98, targets: {}, updatedAt: 1 };
+  const old = boot({ focus: { goals: ["transformers"], known: [], updatedAt: 1 }, plan });
+  const deepOn = boot({ focus: { goals: ["transformers"], known: [], deep: true, updatedAt: 1 }, plan });
+  assert.equal(old.B.S.focus.deep, true);
+  eq(old.B.planIds(), [...deepOn.B.planIds()]);
+  assert.equal(old.B.sched().todayTarget, deepOn.B.sched().todayTarget);
+  assert.ok(old.B.planIds().some(id => old.B.UNITS[old.B.BY_ID[id].ui].title === "Deep Dive: Attention & Transformers"));
+  // The saved copy keeps the focus; on the next save it carries deep: true explicitly.
+  old.B.save();
+  assert.equal(JSON.parse(old.store.get("mlepath-v1")).focus.deep, true);
+});
+
+test("a new goal with Go deeper off plans the core units only; turning it on adds the deep dives", () => {
+  const off = boot({ focus: { goals: ["transformers"], known: [], deep: false, track: "llm", updatedAt: 1 } });
+  const on = boot({ focus: { goals: ["transformers"], known: [], deep: true, track: "llm", updatedAt: 1 } });
+  const deepIn = B => B.planIds().filter(id => B.UNITS[B.BY_ID[id].ui].title.startsWith("Deep Dive:")).length;
+  assert.equal(deepIn(off.B), 0);
+  assert.ok(deepIn(on.B) > 0);
+  assert.equal(on.B.planIds().length - off.B.planIds().length, deepIn(on.B));
+  eq(off.B.S.focus, { goals: ["transformers"], known: [], deep: false, track: "llm", updatedAt: 1 });
+});
+
+test("a multi-subject goal interleaves: next-up, the path's unit order and the plan agree", () => {
+  const { B } = boot({ done: { u0l0: true }, focus: { goals: ["essentials"], known: [], deep: false, updatedAt: 1 } });
+  const ids = B.pathIds();
+  assert.equal(B.pathNext().id, ids.find(id => !B.S.done[id]));
+  assert.equal(B.UNITS[B.pathNext().ui].title, "System Design", "after Start Here comes a system design chunk");
+  assert.equal(B.nextUp().id, B.pathNext().id);
+  eq(B.planIds(), [...ids]);
+  const order = B.pathUnits().map(ui => B.UNITS[ui].title);
+  eq(order.slice(0, 3), ["Start Here", "System Design", "Python Refresher"]);
+});
+
+test("labels: a unit is named by its title, the lesson kicker counts lessons, the header has no XP pill", () => {
+  const { B } = boot({ done: { u0l0: true }, xp: 50 });
+  const bp = B.UNITS.find(u => u.title === "Deep Dive: Backprop");
+  assert.equal(B.unitLabel(bp.ui), "Backprop");
+  assert.equal(B.lessonKicker(B.UNITS[0].lessons[0]), `Start Here · Lesson 1 of ${B.UNITS[0].lessons.length}`);
+  const row = B.statsRow();
+  assert.ok(!/XP/.test(row));
+  assert.ok(/0 of 2 today/.test(row));
+  assert.ok(!/streak/.test(row), "no streak pill before day 2");
+  const two = boot({ last: todayNum(), streak: 2, done: { u0l0: true } }).B.statsRow();
+  assert.ok(/2-day streak/.test(two));
+});
+
+test("without a goal, next-up is the next core lesson in the chosen subject, skipping deep dives", () => {
+  const ml = boot({}).B;
+  const done = {};
+  ml.UNITS.filter(u => ["Start Here", "Python Refresher", "Math Primer", "Foundations"].includes(u.title)).forEach(u => u.lessons.forEach(l => { done[l.id] = true; }));
+  const { B } = boot({ done });
+  // Display order puts Deep Dive: Probability & Stats right after Foundations; the core next-up skips it.
+  assert.equal(B.UNITS[B.nextUp().ui].title, "Classical ML Algorithms");
+  const code = boot({ subject: "code" }).B;
+  assert.equal(code.UNITS[code.nextCore().ui].tr, "code");
 });
