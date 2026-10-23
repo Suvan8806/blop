@@ -4,6 +4,7 @@
 "use strict";
 const Plan = require("../../plan.js");
 const St = require("../../state.js");
+const Paths = require("../../paths.js");
 
 const MAX_SUBS_PER_USER = 10;
 const DUE_WINDOW_MIN = 60;   // a reminder goes out on the first hourly run in [remind time, remind time + 60 min)
@@ -110,7 +111,7 @@ function dueNow({ remindTime, tz, lastSentDay, now }) {
 }
 
 /* Today's goal from a user's saved progress (the `progress.data` row), mirroring dayGoal() in core.js: the active
-   plan's target for today when there is one, otherwise the daily goal. units: the curriculum (logic.buildUnits).
+   plan's target for today when there is one (over the learning path, with a focus), otherwise the daily goal. units: the curriculum (logic.buildUnits).
    -> { known:true, done, goal, left, streak } or { known:false } when the data can't be read. */
 function goalStatus(data, day, units) {
   try {
@@ -120,8 +121,10 @@ function goalStatus(data, day, units) {
     const streak = last >= day - 1 ? s.streak : 0;
     const plan = Plan.migratePlan(data.plan, { unitCount: units.length });
     if (plan && Plan.isActive(plan)) {
+      // With a learning focus the plan covers the path (paths.js), exactly as planIds() in core.js.
+      const path = Paths.focusOrder(units, data.focus);
       const skip = Array.isArray(data.skip) ? data.skip.filter(x => Number.isInteger(x) && x >= 0 && x < units.length) : [];
-      const order = Plan.planOrder(units, Plan.effectiveSkip(skip, plan.knownUnits, units.length));
+      const order = path ? Plan.planOrder(units, [], path) : Plan.planOrder(units, Plan.effectiveSkip(skip, plan.knownUnits, units.length));
       const sch = Plan.schedule({ order, done: s.done, doneOn: s.doneOn, today: day, start: plan.start, days: plan.days });
       if (sch.remaining + sch.doneToday > 0) return status(sch.doneToday, Math.max(1, sch.todayTarget), streak, true);
     }

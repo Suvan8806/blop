@@ -155,19 +155,21 @@ test("every typed question passes normQ", () => {
   assert.ok(typed > 40, `only ${typed} typed questions`);
 });
 
-test("display order: each deep-dive unit follows the base unit it deepens", () => {
+test("display order: each placed unit follows its base, with only units placed after that base in between", () => {
   const ml = L.unitsFor(UNITS, "ml").map(u => u.title);
+  const descends = (t, base) => { for (let b = L.UNIT_AFTER[t]; b; b = L.UNIT_AFTER[b]) if (b === base) return true; return false; };
   const after = (deep, base) => {
     const i = ml.indexOf(deep), b = ml.indexOf(base);
     assert.ok(b >= 0 && i > b, `${deep} after ${base}`);
-    assert.ok(ml.slice(b + 1, i).every(t => L.UNIT_AFTER[t] === base), `${deep} directly after ${base}`);
+    assert.ok(ml.slice(b + 1, i).every(t => descends(t, base)), `${deep} directly after ${base} and what follows it`);
   };
-  after("Deep Dive: Backprop", "Foundations");
+  after("Deep Dive: Backprop", "Deep Dive: CNN Internals");
   after("Deep Dive: Attention & Transformers", "Transformers & LLMs");
   after("Deep Dive: RL Foundations", "Reinforcement Learning");
   Object.entries(L.UNIT_AFTER).forEach(([deep, base]) => after(deep, base));
-  assert.deepEqual(ml.slice(0, 7), ["Start Here", "Python Refresher", "Foundations", "Deep Dive: Backprop",
-    "Deep Dive: Optimizers", "Deep Dive: Regularization", "Deep Dive: Evaluation Metrics"]);
+  assert.deepEqual(ml.slice(0, 11), ["Start Here", "Python Refresher", "Math Primer", "Foundations", "Deep Dive: Probability & Stats",
+    "Deep Dive: Evaluation Metrics", "Architectures", "Deep Dive: CNN Internals", "Deep Dive: Backprop", "Deep Dive: Optimizers",
+    "Deep Dive: Regularization"]);
   assert.equal(ml[ml.length - 1], "Practical ML Engineering");
   assert.equal(ml.filter(t => t.startsWith("Deep Dive:")).length, 15);
 });
@@ -187,8 +189,10 @@ test("displayOrder keeps index order without a mapping and ignores bad mappings"
   assert.deepEqual(L.displayOrder(us, { E: "A", D: "A" }).map(u => u.title), ["A", "D", "E", "B", "C"]);
   // a missing base, a base in another subject and a unit naming itself all keep index order
   assert.deepEqual(L.displayOrder(us, { E: "Nope", D: "C", B: "B" }).map(u => u.title), ["A", "B", "C", "D", "E"]);
-  // no chains: E's base D is itself placed, so E keeps index order
-  assert.deepEqual(L.displayOrder(us, { E: "D", D: "A" }).map(u => u.title), ["A", "D", "B", "C", "E"]);
+  // chains: E follows D, which follows A
+  assert.deepEqual(L.displayOrder(us, { E: "D", D: "A" }).map(u => u.title), ["A", "D", "E", "B", "C"]);
+  // a cycle keeps index order for the units in it
+  assert.deepEqual(L.displayOrder(us, { E: "D", D: "E", B: "A" }).map(u => u.title), ["A", "B", "C", "D", "E"]);
 });
 
 test("the study plan follows display order", () => {
@@ -196,7 +200,8 @@ test("the study plan follows display order", () => {
   const order = Plan.planOrder(UNITS, []);
   const byPos = UNITS.slice().sort((a, b) => a.pos - b.pos).flatMap(u => u.lessons.map(l => l.id));
   assert.deepEqual(order, byPos);
-  assert.equal(order.indexOf("u39l0"), order.indexOf("u2l17") + 1, "Deep Dive: Backprop starts right after Foundations");
+  assert.equal(order.indexOf("u39l0"), order.indexOf("u43l4") + 1, "Deep Dive: Backprop starts right after Deep Dive: CNN Internals");
+  assert.equal(order.indexOf("u3l0"), order.indexOf("u1l19") + 1, "Math Primer starts right after Python Refresher");
   assert.ok(!Plan.planOrder(UNITS, [39]).includes("u39l0"));
 });
 

@@ -34,7 +34,7 @@ const DEVICE_ID = (() => {
 function normalize(raw){
   const src = isObj(raw) ? raw : {};
   const st = Object.assign({ done:{}, xp:0, xpLog:{}, streak:0, last:-1, miss:{}, goal:2, day:-1, dayLessons:0, dayXp:0, open:null,
-    doneOn:{}, times:[], plan:null, skip:[], subject:"ml", srs:{}, remind: ST.DEFAULT_REMIND,
+    doneOn:{}, times:[], plan:null, focus:null, skip:[], subject:"ml", srs:{}, remind: ST.DEFAULT_REMIND,
     settingsUpdatedAt:0, updatedAt:0, resetAt:0, progressUpdatedAt:0, jobs:[], mock:[], jobTarget: window.Jobs ? Jobs.DEFAULT_TARGET : 15 }, ST.clean(src));
   st.skip = Array.isArray(st.skip) ? [...new Set(st.skip.filter(x => Number.isInteger(x) && x >= 0 && x < UNITS.length))].slice(0, UNITS.length) : [];
   if (!(st.open === null || (Number.isInteger(st.open) && st.open >= -1 && st.open < UNITS.length))) st.open = null;
@@ -44,10 +44,12 @@ function normalize(raw){
   // The reminder time used to live on the plan; it's a setting now.
   if (!("remind" in src) && isObj(src.plan) && typeof src.plan.remind === "string") st.remind = src.plan.remind;
   st.remind = ST.validTime(st.remind);
+  st.focus = window.Paths ? Paths.cleanFocus(st.focus, UNITS) : (isObj(st.focus) ? st.focus : null);
   if (window.Plan) {
     st.plan = Plan.migratePlan(st.plan, { unitCount: UNITS.length, lessonCount: ALL.length });
     if (Plan.isActive(st.plan) && !Number.isFinite(st.plan.startRemaining)) {
-      const order = Plan.planOrder(UNITS, Plan.effectiveSkip(st.skip, st.plan.knownUnits, UNITS.length));
+      const path = focusOrderOf(st.focus);
+      const order = path ? Plan.planOrder(UNITS, [], path) : Plan.planOrder(UNITS, Plan.effectiveSkip(st.skip, st.plan.knownUnits, UNITS.length));
       st.plan = { ...st.plan, startRemaining: Plan.estimateStartRemaining(order, st.done, st.doneOn, st.plan.start) };
     }
   } else st.plan = null;
@@ -166,6 +168,8 @@ function startLesson(l){
 }
 /* After finishing a unit, open the next unit of the same subject (or stay on the last one). */
 function nextUnitIn(ui){
+  const path = pathUnits(), at = path ? path.indexOf(ui) : -1;
+  if (at >= 0) return path[at + 1] ?? ui; // on a learning path, open the next unit of the path
   const same = L.unitsFor(UNITS, UNITS[ui].tr);
   const i = same.findIndex(u => u.ui === ui);
   return (same[i + 1] || same[i]).ui;
@@ -297,10 +301,27 @@ function runSession(items, opts){
 
 /* ---------- plan and header helpers, shared by the tabs ---------- */
 function plural(n, word){ return `${n} ${word}${n === 1 ? "" : "s"}`; }
-/* Units left out of the plan: the ones the user unticked, plus units added since the plan was made. */
 function activePlan(){ return window.Plan && Plan.isActive(S.plan) ? S.plan : null; }
+/* ---------- learning focus (paths.js) ---------- */
+function focusOrderOf(focus){ return window.Paths ? Paths.focusOrder(UNITS, focus) : null; }
+function hasFocus(){ return !!(window.Paths && Paths.isActive(S.focus)); }
+/* Unit indices on the learner's path, in study order (units marked known left out), or null without a focus. */
+function pathUnits(){ return hasFocus() ? focusOrderOf(S.focus) : null; }
+/* Units left out of the plan. With a focus: every unit not on the path. Otherwise the ones the user unticked,
+   plus units added since the plan was made. */
 function planSkip(){
+  const fs = hasFocus() && Paths.focusSkip(UNITS, S.focus);
+  if (fs) return fs;
   return activePlan() ? Plan.effectiveSkip(S.skip, S.plan.knownUnits, UNITS.length) : S.skip;
+}
+/* Lesson ids the plan covers, in study order: the path with a focus, otherwise the units in display order. */
+function planIds(){ return window.Plan ? Plan.planOrder(UNITS, planSkip(), pathUnits() || undefined) : []; }
+/* The next unfinished lesson on the path, or null (no focus, or the path is finished). */
+function pathNext(){
+  const order = pathUnits();
+  if (!order) return null;
+  for (const ui of order) { const l = UNITS[ui].lessons.find(x => !S.done[x.id]); if (l) return l; }
+  return null;
 }
 /* Today's schedule for the active plan, or null. Also remembers today's target for the calendar. */
 function sched(){
@@ -309,7 +330,7 @@ function sched(){
   let s;
   // A plan that still can't be scheduled (bad data that got past normalize) shows as no plan, never a crash.
   try {
-    s = Plan.schedule({ order: Plan.planOrder(UNITS, planSkip()), done: S.done, doneOn: S.doneOn,
+    s = Plan.schedule({ order: planIds(), done: S.done, doneOn: S.doneOn,
       today: t, start: S.plan.start, days: S.plan.days });
   } catch (e) { return null; }
   const targets = Plan.recordTarget(S.plan.targets, t, s.todayTarget);
@@ -326,7 +347,7 @@ function dayGoal(){
 function nextUp(){
   const s = sched();
   const id = s && s.plan.flatMap(d => d.ids)[0];
-  return id ? BY_ID[id] : nextOverall();
+  return id ? BY_ID[id] : pathNext() || nextOverall();
 }
 function statsRow(extra){
   const g = dayGoal();
@@ -344,7 +365,7 @@ function ringSVG(pct, label){
     <text x="48" y="54" text-anchor="middle" font-size="20" font-weight="800" fill="var(--ink)" font-family="Lexend,sans-serif">${esc(label)}</text></svg>`;
 }
 
-Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime,
+Object.assign(B, { normalize, commit, replaceState, setSettings, activePlan, plural, planSkip, planIds, hasFocus, pathUnits, pathNext, sched, dayGoal, nextUp, statsRow, ringSVG, KEY, DEVICE_ID, UNITS, ALL, BY_ID, QS, S, today, load, save, reset, wipe, touchProgress, rollDay, award, liveStreak, recordTime,
   $, esc, fmt, teachHTML, shuffle, toast, unlocked, nextInUnit, nextOverall, unitLabel, I,
   startLesson, startPractice, startReview, dueReviews, isDue, runSession, render: () => {} });
 })();

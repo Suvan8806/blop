@@ -4,7 +4,7 @@
 if (!window.Blop || !window.Blop.S) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop, L = B.logic;
 const { UNITS, BY_ID, QS, S, I, $, esc, commit, setSettings, today, toast, unlocked, unitLabel, startLesson, startReview, dueReviews,
-  plural, planSkip, sched, dayGoal, nextUp, statsRow, ringSVG } = B;
+  plural, planSkip, planIds, hasFocus, pathUnits, sched, dayGoal, nextUp, statsRow, ringSVG } = B;
 
 const PLAN_LENGTHS = [14, 30, 45, 60];
 const DEFAULT_PLAN_DAYS = 30;
@@ -14,7 +14,7 @@ let calMonth = null; // { year, month } shown in the calendar; null means this m
 /* ---------- today's lessons ---------- */
 function todayIds(s){
   const t = today();
-  const doneToday = Plan.planOrder(UNITS, planSkip()).filter(id => S.done[id] && S.doneOn[id] === t);
+  const doneToday = planIds().filter(id => S.done[id] && S.doneOn[id] === t);
   return [...doneToday, ...s.plan[0].ids];
 }
 function lessonItem(id, isNext){
@@ -54,14 +54,40 @@ function todayPlanHTML(s, secs){
     ${ids.length ? `<ul class="lessons tlist">${ids.map(id => lessonItem(id, id === next)).join("")}</ul>` : ""}
     ${aheadHTML(s)}</div>`;
 }
+/* The next n unfinished lessons on the learning path. */
+function nextOnPath(n){
+  const out = [];
+  for (const ui of pathUnits() || []) {
+    for (const l of UNITS[ui].lessons) { if (out.length >= n) return out; if (!S.done[l.id]) out.push(l.id); }
+  }
+  return out;
+}
 function goalHTML(){
   const g = dayGoal(), pct = Math.min(1, g.done / g.goal), left = g.goal - g.done, nxt = nextUp();
+  // With a focus and no deadline, today's lessons are the next ones on the path.
+  const ids = hasFocus() ? nextOnPath(Math.max(1, left)) : [];
   return `<div class="panel"><div class="ring">${ringSVG(pct, `${g.done}/${g.goal}`)}
     <div><h3>${pct >= 1 ? "Daily goal reached" : "Today’s goal"}</h3>
     <p style="margin:0">${pct >= 1 ? "Nice. Anything else today is bonus XP."
       : `Finish ${plural(left, "more lesson")} to hit your goal.`}</p></div></div>
-    ${nxt ? `<p style="margin:14px 0 12px">Next: ${esc(unitLabel(nxt.ui))} · ${esc(nxt.title)}</p>
+    ${ids.length ? `<ul class="lessons tlist">${ids.map((id, i) => lessonItem(id, i === 0)).join("")}</ul>`
+      : nxt ? `<p style="margin:14px 0 12px">Next: ${esc(unitLabel(nxt.ui))} · ${esc(nxt.title)}</p>
     <button class="cta" id="cont">Start lesson</button>` : ""}</div>`;
+}
+/* Existing users who never picked a focus get a gentle, dismissible nudge instead of the first-run picker. */
+function focusNudgeHTML(){
+  if (!window.Paths || !B.openFocus || S.focus !== null) return "";
+  return `<div class="panel nudge"><h3>Pick a focus</h3>
+    <p>Tell blop what you want to learn (say, CNNs or the system design round) and it builds a path: the basics you need first, then your goal. Your plan and daily lessons then follow it.</p>
+    <button class="cta" id="focusopen">Pick a focus</button><button class="linkish soft" id="focusno">Not now</button></div>`;
+}
+/* With a focus: the path's units, which ones you marked as known, and a way to change the focus. */
+function focusUnitsPanel(){
+  const p = Paths.pathFor(UNITS, S.focus.goals, { known: S.focus.known, done: S.done });
+  return `<div class="panel"><h3>Your path</h3><p>${esc(Paths.goalsLabel(S.focus))}. Untick units you already know: they leave your path and your daily count.</p>
+    <div class="upicks">${p.steps.map(st => `<label class="upick"><input type="checkbox" data-pknown="${esc(st.title)}" ${st.known ? "" : "checked"}>
+      <span>${esc(st.title)}</span><small>${st.left ? `${st.left} left` : "done"}</small></label>`).join("")}</div>
+    <button class="cta ghost" id="focuschange" style="margin-top:12px">Change focus</button></div>`;
 }
 function reviewPanel(){
   const doneCount = Object.keys(S.done).length;
@@ -81,7 +107,7 @@ function reviewPanel(){
 const MARK = { done: "✓", partial: "◐", missed: "✕", today: "•", rest: "–", upcoming: "", off: "" };
 const LEGEND = [["done", "Target met"], ["partial", "Partly done"], ["missed", "Missed"], ["upcoming", "Upcoming"], ["rest", "Rest day"]];
 function lessonsByDay(s){
-  const ids = s ? Plan.planOrder(UNITS, planSkip()) : Object.keys(S.done);
+  const ids = s ? planIds() : Object.keys(S.done);
   const did = {};
   ids.forEach(id => { const d = S.doneOn[id]; if (S.done[id] && d != null) did[d] = (did[d] || 0) + 1; });
   return did;
@@ -148,9 +174,9 @@ function unitsPanel(){
     ${groups.map(([name, us]) => `<h4 class="subhead">${esc(name)}</h4><div class="upicks">${us.map(u => unitPick(u, skip)).join("")}</div>`).join("")}</div>`;
 }
 function planSetupHTML(secs){
-  const left = Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length;
+  const left = planIds().filter(id => !S.done[id]).length;
   const pv = Plan.preview(Math.max(left, 1), draftDays, secs);
-  return `<div class="panel"><h3>Make a study plan</h3><p>Finish everything in…</p>
+  return `<div class="panel"><h3>Make a study plan</h3><p>Finish ${hasFocus() ? "your path" : "everything"} in…</p>
     <div class="seg">${PLAN_LENGTHS.map(n => `<button data-days="${n}" aria-pressed="${draftDays===n}">${n} days</button>`).join("")}</div>
     <div class="sumgrid">
       <div><b>${left}</b><small>lessons left</small></div>
@@ -166,12 +192,14 @@ function planSettingsHTML(s){
       <p>Adds a repeating event with an alert to your phone’s calendar, every day until your plan ends. For a notification only on days you haven’t studied yet, turn on Daily reminder in Profile.</p>
       <div class="remind"><input type="time" id="remindat" value="${esc(S.remind)}" aria-label="Reminder time">
       <button class="cta ghost" id="addremind">Add to calendar</button></div></div>`}
-    <div class="panel"><h3>Change your plan</h3><p>Finish in this many days, counting from today.</p>
+    <div class="panel"><h3>Change your plan</h3><p>Finish ${hasFocus() ? "your path " : ""}in this many days, counting from today.</p>
       <div class="seg">${PLAN_LENGTHS.map(n => `<button data-relen="${n}">${n}</button>`).join("")}</div>
       <button class="linkish" id="endplan" style="margin-top:8px">End plan</button></div>`;
 }
 function planStateHTML(s, secs){
   if (!s.total) return `<div class="panel"><h3>No units selected</h3><p style="margin:0">Tick at least one unit below to plan your days.</p></div>`;
+  if (!s.remaining && hasFocus()) return `<div class="panel"><h3>Path complete 🎉</h3><p>You finished every lesson on your path. Pick a new focus to keep going, or keep it fresh with the daily review.</p>
+    <button class="cta" id="focusnew">Pick a new focus</button></div>`;
   if (!s.remaining) return `<div class="panel"><h3>Plan complete 🎉</h3><p style="margin:0">You finished every lesson in your plan${
     s.end > today() ? `, ${plural(s.end - today(), "day")} early` : ""}. Keep it fresh with the daily review, or end the plan below to start a new one.</p></div>`;
   return todayPlanHTML(s, secs);
@@ -203,7 +231,7 @@ function bind(app, s, secs, render){
     // A plan can't run longer than Plan.MAX_DAYS in total; a very old plan restarts from today instead.
     const len = +b.dataset.relen, days = today() - S.plan.start + len;
     S.plan = days <= Plan.MAX_DAYS ? { ...S.plan, days, updatedAt: Date.now() } : { ...S.plan, start: today(), days: len, targets: {},
-      startRemaining: Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length, updatedAt: Date.now() };
+      startRemaining: planIds().filter(id => !S.done[id]).length, updatedAt: Date.now() };
     commit(); render();
     toast(`Plan now ends ${Plan.dateLabel(today() + +b.dataset.relen - 1, today())}.`);
   });
@@ -217,12 +245,19 @@ function bind(app, s, secs, render){
     const f = app.querySelector(`[data-cal="${b.dataset.cal}"]`); if (f) f.focus({ preventScroll: true });
   });
   on("#startplan", () => {
-    const left = Plan.planOrder(UNITS, planSkip()).filter(id => !S.done[id]).length;
+    const left = planIds().filter(id => !S.done[id]).length;
     S.plan = Plan.create({ start: today(), days: draftDays, knownUnits: UNITS.length, startRemaining: left, now: Date.now() });
     commit(); render();
   });
   on("#endplan", () => { if (confirm("End this plan? Your finished lessons stay finished.")) { S.plan = Plan.ended(Date.now()); commit(); render(); } });
   on("#cont", () => { const n = nextUp(); if (n) startLesson(n); });
+  ["#focusopen", "#focuschange", "#focusnew"].forEach(sel => on(sel, () => B.openFocus()));
+  on("#focusno", () => { S.focus = Paths.makeFocus([], [], Date.now()); commit(); render(); toast("OK. Pick a focus any time from Profile."); });
+  app.querySelectorAll("[data-pknown]").forEach(c => c.onchange = () => {
+    const t = c.dataset.pknown, known = S.focus.known.filter(x => x !== t);
+    S.focus = Paths.makeFocus(S.focus.goals, c.checked ? known : [...known, t], Date.now());
+    commit(); render();
+  });
   on("#rev", startReview);
   on("#addremind", () => downloadReminder(s, secs));
   const t = $("#remindat");
@@ -239,11 +274,12 @@ function renderToday(app, render){
   const secs = Plan.lessonSecs(S.times);
   const s = sched();
   app.innerHTML = `<div class="top"><div class="wrap"><h1>Today</h1>${statsRow()}</div></div><div class="wrap">
+    ${focusNudgeHTML()}
     ${s ? planStateHTML(s, secs) : goalHTML()}
     ${reviewPanel()}
     ${calendarHTML(s)}
     ${s ? planSettingsHTML(s) : planSetupHTML(secs)}
-    ${unitsPanel()}</div>`;
+    ${hasFocus() ? focusUnitsPanel() : unitsPanel()}</div>`;
   bind(app, s, secs, render);
 }
 

@@ -38,8 +38,11 @@ new units at the end of `window.CURRICULUM`, new questions at the end of a lesso
 Units 16 and 17 are tagged `sd` in `logic.js` (`UNIT_SUBJECT`) so `content.js` stays untouched.
 
 Display order within a subject is unit order, except units named in `UNIT_AFTER` in `logic.js`: each is shown
-(and planned) right after the base unit whose title it names, so a deep dive sits next to the unit it deepens.
-This only changes display order and the "Unit N" numbers, never unit indices or ids.
+(and planned) right after the unit whose title it names, after anything already placed there. Chains are allowed, so
+the order can follow the prerequisite graph in `paths.js` (Math Primer before Foundations, the backprop, optimizer and
+regularization deep dives after Architectures). `test/paths.test.js` checks that each subject's display order is a
+valid topological order of that graph and that key concepts (chain rule, ReLU, softmax, PPO) are never used before the
+lesson that teaches them. This only changes display order and the "Unit N" numbers, never unit indices or ids.
 
 ### Lessons
 `[title, teach text, questions, {problems:[...]}]`. The 4th element is optional; `problems` is a
@@ -124,7 +127,7 @@ Merge rules: study progress from a copy last changed before the latest reset is 
 union (earliest day kept), XP is counted per device (`xpLog`, merged by max per device and shown as the sum, so two
 devices earning offline add up), missed-question counts take the max, the streak
 comes from the side that studied most recently, review schedule entries, jobs and mock interview attempts (including delete tombstones) take
-the newer `updatedAt` (attempts are then capped at the newest 100), the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
+the newer `updatedAt` (attempts are then capped at the newest 100), the learning focus takes the newer `updatedAt`, the plan takes the newer `updatedAt` (an ended plan is `{ended:true, updatedAt}`) with daily
 targets merged by max, lesson times are a union capped at 20, settings follow `settingsUpdatedAt`, today's counters
 take the max on the same day, and top-level fields the app doesn't know are dropped. Every timestamp is capped at
 the merging device's clock plus one day, so a device whose clock is far ahead can't win every merge forever.
@@ -144,6 +147,11 @@ need them for `web-push`).
 ## Code layout
 - `logic.js`: pure content logic (building units, normalising questions, checking answers, subjects). Tested in node.
 - `plan.js`: pure study-plan and calendar logic. Tested in node.
+- `paths.js`: learning paths. The unit prerequisite map (by unit title), the goals a learner can pick, and
+  `pathFor()`, which returns a goal's units plus every prerequisite in dependency order (ties follow display order),
+  leaving out units marked "I already know this". With a focus (`S.focus = {goals, known, updatedAt}`) the study
+  plan, today's lessons and the Learn tab's "Your path" view follow the path. Tested in node.
+- `focus-ui.js`: the "What do you want to learn?" picker (goals, path, pace), shown on first run and from Today and Profile.
 - `srs.js`: pure spaced-repetition scheduling. Tested in node.
 - `jobs.js`: pure job-tracker logic (stats, streak, filters, link checks). Tested in node.
 - `state.js`: which saved fields exist, which are progress and which are settings; reset; XP per device; clamping
