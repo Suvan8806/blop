@@ -8,7 +8,7 @@ const EXTRA = [
     items:["Clarify functional and non-functional requirements","Estimate scale","Define the API","Sketch the data model","Draw the high-level design","Deep-dive on bottlenecks and trade-offs"],
     why:"Requirements and numbers come first, because every later choice depends on them."}],
   [16, "Caching", {type:"gap", p:"With cache-aside, a cache miss means the app reads the ___ and then writes the result to the cache.",
-    opts:["database","CDN","load balancer"], why:"The app owns the cache: it fills it only after a miss."}],
+    opts:["database","CDN","load balancer","message queue"], why:"The app owns the cache: it fills it only after a miss."}],
   [16, "SQL vs NoSQL", {type:"match", p:"Match each store to the job it fits best",
     pairs:[["Relational (Postgres)","Money transfers that need ACID transactions"],["Wide-column (Cassandra)","A huge, write-heavy stream of chat messages"],["Key-value (Redis)","Fast lookups by a single key"],["Graph","Friend-of-a-friend queries"]],
     why:"Pick the store whose data model matches how you read and write."}],
@@ -19,8 +19,8 @@ const EXTRA = [
     pairs:[["AUC","Offline: how well held-out examples are ranked"],["Log loss","Offline: how well predicted probabilities are calibrated"],["Click-through rate","Online: share of impressions that get a click"],["Retention","Online: share of users who come back"]],
     why:"Offline metrics use held-out data; online metrics measure real users."}],
   [17, "Two-Stage Recommenders", {type:"gap", p:"Candidate generation narrows billions of items down to ___ for the ranking model.",
-    opts:["a few hundred","a few billion","exactly one"], why:"Cheap retrieval first, so the heavy ranker only scores a short list."}],
-  [5, "Gradient Boosting", ["Compared with a random forest, gradient boosting mainly reduces…", ["Bias", "Variance", "Training time"],
+    opts:["a few hundred","a few billion","exactly one","a few hundred million"], why:"Cheap retrieval first, so the heavy ranker only scores a short list."}],
+  [5, "Gradient Boosting", ["Compared with a random forest, gradient boosting mainly reduces…", ["Bias", "Variance", "Training time", "Sensitivity to label noise"],
     "Each boosted tree corrects what the ensemble still gets wrong, which lowers bias. A forest averages many deep trees, which lowers variance."]]
 ];
 EXTRA.forEach(([ui, title, q]) => {
