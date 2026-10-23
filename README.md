@@ -166,9 +166,25 @@ need them for `web-push`).
 - `api/push-subscribe.js`, `api/cron-remind.js`, `api/_lib/push-*.js`, `api/_lib/cron-remind-handler.js`,
   `api/_lib/curriculum.js`: the reminder functions (see "Streak reminders"). Tested in node with a stubbed fetch and web-push.
 - `.github/workflows/remind.yml`: the hourly GitHub Action that triggers the reminders.
+- `landing-logic.js`: pure landing decisions (who sees it, URL cleanup, curriculum counts). Loaded in `<head>`. Tested in node.
+- `landing.js`, `landing.css`: the landing page shown to new visitors.
 - `app.js`: tabs, the Learn and Profile screens. `?tab=today` (or another tab name) opens that tab.
 
 They share code through `window.Blop`.
+
+## Landing page
+New visitors see a landing page (what blop is, the three subjects with counts computed from the curriculum, how it works,
+features, previews built in HTML, a privacy note and an FAQ) before the app. It lives inside the app at `/` so sign-in
+redirects, the service worker and the installed app keep working: `landing-logic.js` runs in `<head>` and sets
+`html.lp-on`, which shows `#landing` and hides the app and the tabs.
+
+- Shown when this device has no progress, no session and no `blop-seen-landing` flag in localStorage, or for `/?welcome`
+  (Profile → About blop). Never on a sign-in redirect (`?code=`, `#access_token=`), and never in the installed app
+  (the manifest's `start_url` is `/?source=pwa`; `id` stays `/` so existing installs keep their identity).
+- "Start learning, no account needed" sets the flag and calls `Blop.afterLanding()`, which opens the Learn tab unless a
+  later script replaces it. "Sign in" opens the Profile sync panel (`sync-ui.js`) in a sheet; a successful email-code
+  sign-in goes to the app, and a Google sign-in returns through the redirect, which skips the landing.
+- `index.html` keeps a short static intro inside `#landing` for crawlers, and a `<noscript>` note.
 
 ## Study plan
 The Today tab spreads the lessons you have left over 14, 30, 45 or 60 days. Today's target is fixed
@@ -309,5 +325,5 @@ Profile → "Reset study progress" clears finished lessons, XP, the study streak
 times, today's counts and the study plan, on this device and (through sync) on your other devices. It keeps job applications, mock interview history and settings (daily goal, job target, subject,
 reminder time, plan units).
 
-Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js test/push-core.test.js test/push-handlers.test.js test/push-logic.test.js test/sw-push.test.js`.
+Run all tests with `node --test test/plan.test.js test/content.test.js test/srs.test.js test/jobs.test.js test/state.test.js test/merge.test.js test/sync-logic.test.js test/mock.test.js test/grade-core.test.js test/grade-handler.test.js test/core-state.test.js test/push-core.test.js test/push-handlers.test.js test/push-logic.test.js test/sw-push.test.js test/landing-logic.test.js`.
 `test/fixtures/content-ids-0bc9f56.json` snapshots the lesson and question ids of `content.js`; the tests fail if any of them disappear.
