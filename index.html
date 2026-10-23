@@ -376,6 +376,40 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 .mres ul,.mres ol{margin:0;padding-left:20px;line-height:1.5;font-size:.94rem;overflow-wrap:anywhere}
 .mres li + li{margin-top:4px}
 @media (prefers-color-scheme: dark){ .mtimer b.up{color:var(--red)} }
+/* learning focus and paths */
+.onb{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.onb .s-top button{font-size:1.9rem;line-height:1;font-weight:700}
+.onb h2{outline:none}
+.fsub{color:var(--soft);line-height:1.5;margin:0 0 10px}
+.onb .s-foot .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:8px}
+.gcard{position:relative;display:flex;flex-direction:column;gap:4px;text-align:left;padding:14px 14px 12px;border-radius:16px;background:var(--surface);
+  border:2px solid var(--line);box-shadow:0 3px 0 var(--line);transition:transform .06s}
+.gcard:active{transform:translateY(2px)}
+.gcard b{font-size:.98rem;line-height:1.25;padding-right:26px}
+.gcard span{font-size:.82rem;color:var(--soft);line-height:1.35}
+.gcard small{font-size:.75rem;font-weight:700;color:var(--soft);margin-top:auto;padding-top:4px}
+.gcard .gtick{position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:#fff}
+.gcard .gtick svg{width:14px;height:14px}
+.gcard[aria-pressed="true"]{border-color:var(--green);box-shadow:0 3px 0 var(--green-d);background:var(--green-bg)}
+.gcard[aria-pressed="true"] .gtick{background:var(--green);border-color:var(--green)}
+.psteps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}
+.pstep{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:var(--surface);cursor:pointer}
+.pstep input{width:22px;height:22px;accent-color:var(--green);flex:none;margin:0}
+.pstep .pnum{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--hue);color:#fff;font-weight:800;font-size:.85rem}
+.pstep .ptxt{display:grid;gap:2px;min-width:0}
+.pstep .ptxt b{font-size:.95rem;line-height:1.25;overflow-wrap:anywhere}
+.pstep .ptxt small{font-size:.8rem;color:var(--soft)}
+.pstep.off{opacity:.6;border-style:dashed}
+.pstep.off .ptxt b{text-decoration:line-through}
+.gtag{display:inline-block;padding:0 7px;border-radius:999px;background:var(--violet);color:#fff;font-weight:700;font-size:.7rem}
+.ppath .jbar span{background:var(--green)}
+.ppath .linkish{display:block;width:100%;text-align:center;margin-top:6px}
+.unit.here{box-shadow:0 0 0 3px var(--hue)}
+.unit.later .banner{filter:saturate(.45);opacity:.8}
+.ustate svg{width:13px;height:13px;vertical-align:-1px}
+.nudge{border-color:var(--violet);background:color-mix(in srgb,var(--violet) 8%,var(--surface))}
+.nudge .linkish{display:block;width:100%;text-align:center;margin-top:6px}
 @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
 </style>
 </head>
@@ -398,9 +432,11 @@ pre code{background:none;padding:0;font-size:inherit;color:inherit}
 <script src="/sync-logic.js"></script>
 <script src="/push-logic.js"></script>
 <script src="/logic.js"></script>
+<script src="/paths.js"></script>
 <script src="/core.js"></script>
 <script src="/qtypes.js"></script>
 <script src="/today.js"></script>
+<script src="/focus-ui.js"></script>
 <script src="/jobs-ui.js"></script>
 <script src="/config.js"></script>
 <script src="/sync.js"></script>
