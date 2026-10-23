@@ -10,7 +10,7 @@ const { S, I, esc, commit, today, toast, plural } = B;
 const DRAFTS_KEY = "blop-mock-drafts"; // { promptId: text } on this device only; a draft isn't synced
 const GRADE_TIMEOUT_MS = 35000; // a little over the server function limit (30 s)
 const TIMER_CHOICES = [0, 5, 10, 15];
-const SHORT = { ml: "ML", sd: "Design", code: "Coding", behav: "Behavioral" };
+const SHORT = { ml: "ML", sd: "System design", code: "Coding", behav: "Behavioral" };
 const SPARK_MAX = 12;
 
 let cat = MP.CATEGORIES[0].id;
@@ -36,11 +36,11 @@ function gate(){
 }
 function gateHTML(g){
   if (g === "in") return "";
-  const msg = g === "off" ? "Grading needs sign-in, and sign-in isn’t set up on this copy of blop yet."
+  const msg = g === "off" ? "AI feedback needs sign-in, which isn’t set up on this copy of blop yet."
     : g === "checking" ? "Checking sign-in…"
-    : "Sign in on the Profile tab to get answers graded (it keeps grading fair: 20 a day per account).";
-  return `<div class="mgate" role="status"><p>${esc(msg)} Your draft is saved on this device, so nothing you type is lost.</p>
-    ${g === "out" ? `<button class="cta ghost" id="mgo">Go to sign in</button>` : ""}</div>`;
+    : "Sign in to get AI feedback on your answer.";
+  return `<div class="mgate" role="status"><p>${esc(msg)} Your draft is saved.</p>
+    ${g === "out" ? `<button class="cta ghost" id="mgo">Sign in</button>` : ""}</div>`;
 }
 
 /* ---------- pieces ---------- */
@@ -70,16 +70,17 @@ function progressHTML(){
     <ul class="mlist">${rows.map(r => `<li><button class="mitem" data-prompt="${esc(r.promptId)}"><span class="mt">${esc(MP.byId(r.promptId).title)}</span>
       <span class="ms">${esc(trendText(r))}</span>${sparkHTML(r.scores)}</button></li>`).join("")}</ul></div>`;
 }
+/* The header pills appear after the first graded answer: no zero counters for someone who hasn't tried yet. */
 function headerHTML(title){
   const live = Mock.live(S.mock), todayCount = live.filter(a => a.day === today()).length;
-  return `<div class="top"><div class="wrap"><h1>${esc(title)}</h1><div class="stats">
+  return `<div class="top"><div class="wrap"><h1>${esc(title)}</h1>${live.length ? `<div class="stats">
     <span class="pill" title="Graded answers">${I.chat}${plural(live.length, "attempt")}</span>
-    <span class="pill" title="Answers graded today (your account can get 20 a day, counted in UTC)">${I.target}${todayCount} graded today</span></div></div></div>`;
+    <span class="pill" title="Answers graded today (your account can get 20 a day, counted in UTC)">${I.target}${todayCount} graded today</span></div>` : ""}</div></div>`;
 }
 function listHTML(){
   const ps = MP.inCategory(cat);
   return `${headerHTML("Mock interview")}<div class="wrap" id="mockroot">
-    <div class="panel"><h3>Practice out loud, get graded</h3>
+    <div class="panel"><h3>Practise out loud, get feedback</h3>
       <p style="margin:0">Pick a question and answer it as you would in an interview, typed or dictated. An AI grader scores it against a rubric
       and shows what a strong answer covers.</p>${gateHTML(gate())}</div>
     <div class="subj mcats" role="group" aria-label="Category">${MP.CATEGORIES.map(c =>
@@ -165,7 +166,7 @@ function startTimer(mins){
 /* ---------- grading ---------- */
 function friendly(status, data){
   if (data && typeof data.error === "string" && data.error.trim()) return Mock.cleanText(data.error, 200);
-  if (status === 401) return "Your sign-in expired. Sign in again on the Profile tab.";
+  if (status === 401) return "Your sign-in expired. Sign in again to get feedback.";
   if (status === 429) return "You’ve used today’s grades. More tomorrow.";
   if (status === 404) return "Grading isn’t available on this version of the site.";
   return "The grader couldn’t be reached. Your answer is still here; try again in a minute.";
@@ -178,7 +179,7 @@ async function submit(p, rerender){
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), GRADE_TIMEOUT_MS);
   try {
     const token = await B.sync.token();
-    if (!token) throw new Error("Your sign-in expired. Sign in again on the Profile tab.");
+    if (!token) throw new Error("Your sign-in expired. Sign in again to get feedback.");
     let r;
     try {
       r = await fetch("/api/grade", { method: "POST", signal: ctl.signal, cache: "no-store",
@@ -219,7 +220,7 @@ function bind(app, rerender){
   app.querySelectorAll("[data-prompt]").forEach(b => b.onclick = () => open(b.dataset.prompt, rerender));
   on("#mrand", () => { const ps = MP.inCategory(cat).filter(p => p.id !== promptId); open(ps[Math.floor(Math.random() * ps.length)].id, rerender); });
   on("#mback", () => { stopTimer(); promptId = null; error = ""; justGraded = null; rerender(); window.scrollTo(0, 0); });
-  on("#mgo", () => B.goTab && B.goTab("profile"));
+  on("#mgo", () => (B.openSignInSheet ? B.openSignInSheet(app.querySelector("#mgo")) : B.goTab && B.goTab("profile")));
   app.querySelectorAll("[data-timer]").forEach(b => b.onclick = () => {
     startTimer(+b.dataset.timer);
     app.querySelectorAll("[data-timer]").forEach(x => x.setAttribute("aria-pressed", String(+x.dataset.timer === timer.mins)));

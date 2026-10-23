@@ -34,7 +34,9 @@ const IC = {
 /* ---------- numbers from the curriculum ---------- */
 const COUNTS = LL.subjectCounts(B.UNITS, L.SUBJECTS);
 const TOTAL = LL.totals(COUNTS);
-const MOCKS = window.MockPrompts && Array.isArray(MockPrompts.PROMPTS) ? MockPrompts.PROMPTS.length : 0;
+/* Each subject's core path in estimated hours (deep dives are optional extras), e.g. "Core path ~5 hours". */
+const CORE = LL.corePath(B.UNITS, L.SUBJECTS, t => !!(window.Paths && Paths.isDeep(t)), B.estSecs);
+const hoursOf = m => (window.Paths ? Paths.hoursText(m) : `~${Math.max(1, Math.round(m / 60))} h`);
 const num = n => Number(n).toLocaleString("en-US");
 /* A few unit titles to show on a subject card: the highlights below when they exist (titles can change), else
    titles spread across the path. */
@@ -54,7 +56,6 @@ function sampleTopics(subject, n){
 /* ---------- sections ---------- */
 const CTAS = `<div class="lp-ctas">
     <button class="cta lp-go" data-act="start">Start learning<span class="lp-go-sub"><span class="lp-comma">,</span> no account needed</span></button>
-    <button class="cta ghost" data-act="signin">Sign in</button>
   </div>`;
 
 function heroHTML(){
@@ -67,9 +68,8 @@ function heroHTML(){
           before you forget, and mock interviews graded with AI feedback.</p>
         ${CTAS}
         <p class="lp-already">Used blop before? <button class="lp-link" data-act="signin">I already have an account</button></p>
-        <ul class="lp-stats" aria-label="What’s inside">
-          <li><b>${num(TOTAL.lessons)}</b> lessons</li><li><b>${num(TOTAL.questions)}</b> questions</li>
-          <li><b>${num(TOTAL.units)}</b> units</li>${MOCKS ? `<li><b>${MOCKS}</b> mock prompts</li>` : ""}
+        <ul class="lp-stats" aria-label="Why blop">
+          <li>2-minute lessons</li><li>~10 min a day</li><li>Free, no account</li>
         </ul>
       </div>
       ${questionMock()}
@@ -102,24 +102,24 @@ function learnHTML(){
     if (!c || !copy || !c.units) return "";
     const topics = sampleTopics(id, 4);
     return `<article class="lp-subj" style="--hue:${copy.hue}">
-      <div class="lp-subj-band"><span class="lp-subj-num" aria-hidden="true">${c.lessons}</span>
-        <h3>${esc(copy.name)}</h3><p>${c.units} ${c.units === 1 ? "unit" : "units"} · ${c.lessons} lessons</p></div>
+      <div class="lp-subj-band"><h3>${esc(copy.name)}</h3>
+        <p>Core path ${hoursOf(CORE[id] ? CORE[id].minutes : 0)}${CORE[id] && CORE[id].deep ? " · plus optional deep dives" : ""}</p></div>
       <div class="lp-subj-body"><p>${esc(copy.blurb)}</p>
-        ${topics.length ? `<ul>${topics.map(t => `<li>${esc(t)}</li>`).join("")}${c.units > topics.length ? `<li class="lp-more">and ${c.units - topics.length} more units</li>` : ""}</ul>` : ""}
-        <p class="lp-fine">${num(c.questions)} questions</p></div>
+        ${topics.length ? `<ul>${topics.map(t => `<li>${esc(t)}</li>`).join("")}${c.units > topics.length ? `<li class="lp-more">and more</li>` : ""}</ul>` : ""}
+        </div>
     </article>`;
   }).join("");
   return `<section class="lp-sec" aria-labelledby="lp-learn"><div class="lp-wrap">
     <h2 id="lp-learn">What you’ll learn</h2>
-    <p class="lp-sub">Three subjects, each a path of units. Every lesson is a short explanation followed by a few questions.</p>
+    <p class="lp-sub">Three subjects, each a path of units, with ${num(Math.floor(TOTAL.questions / 100) * 100)}+ questions in all. Every lesson is a short explanation followed by a few questions.</p>
     <div class="lp-subjs">${cards}</div></div></section>`;
 }
 
 const STEPS = [
-  ["Set a daily plan", "Pick 14, 30, 45 or 60 days. blop spreads the lessons you have left across them and rebalances when you miss a day."],
+  ["Pick a goal", "Tell blop what you’re preparing for. It builds a short path and a daily plan."],
   ["Do bite-sized lessons", "About two minutes each: a short read, then multiple choice, fill-the-gap, put-in-order and match-the-pairs questions."],
   ["Review before you forget", "Finished lessons come back after 1, 3, 7, 21 and 60 days, with the questions you missed first."],
-  ["Practise the real thing", "Answer open-ended interview prompts in your own words and get a score for each rubric area."]
+  ["Practise the real thing", "Answer open-ended interview prompts in your own words and get feedback on each part of your answer."]
 ];
 function howHTML(){
   return `<section class="lp-sec lp-alt" aria-labelledby="lp-how"><div class="lp-wrap">
@@ -131,7 +131,7 @@ function howHTML(){
 function featuresHTML(){
   const F = [
     [I.cal, "Study plan and calendar", "Today’s lessons, how far ahead or behind you are, and a month view coloured by how each day went."],
-    [I.chat, "Mock interviews with AI feedback", `${MOCKS || "Dozens of"} prompts in ML, system design, coding and behavioural. Scores, strengths, gaps and a model outline. Needs sign-in.`],
+    [I.chat, "Mock interviews with AI feedback", "Prompts in ML, system design, coding and behavioural. Scores, strengths, gaps and a model outline. Needs sign-in."],
     [I.case, "Job application tracker", "Log an application in one tap, move it through OA, phone screen and onsite, and see your response rate."],
     [IC.offline, "Works offline, installs like an app", "Add blop to your home screen and keep studying on a plane or the subway."],
     [IC.sync, "Sync across devices (optional)", "Sign in with Google or an email code to keep phone and laptop in step."],

@@ -1,9 +1,11 @@
-/* Jobs tab: one-tap "+1 Applied", today's count against a target, application streak, stats,
-   and a filterable list with status chips. Logic lives in jobs.js; all user text goes through esc(). */
+/* Job tracker (a screen inside Profile): one-tap "+1 Applied", today's count against a target, stats once there are
+   enough applications, and a filterable list with status chips. Nothing is counted before the first application.
+   Logic lives in jobs.js; all user text goes through esc(). */
 (() => {
 if (!window.Blop || !window.Blop.S || !window.Jobs) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop;
-const { S, I, $, esc, commit, setSettings, today, toast, liveStreak, plural } = B;
+const { S, I, $, esc, commit, setSettings, today, toast } = B;
+const STATS_FROM = 5; // the stats panel appears once this many applications are logged
 
 let view = { status: "all", q: "" };
 let form = null;   // null, or { id: null for a new one / the id being edited, draft: what's typed so far }
@@ -13,16 +15,19 @@ const newId = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() :
 const dateText = day => Plan.dayLabel(day, { month: "short", day: "numeric", year: day < today() - 300 ? "numeric" : undefined });
 
 /* ---------- pieces ---------- */
+const hasJobs = () => Jobs.live(S.jobs).length > 0;
 function headerHTML(){
-  const n = Jobs.countOn(S.jobs, today()), streak = Jobs.streak(S.jobs, today());
-  return `<div class="top"><div class="wrap"><h1>Jobs</h1><div class="stats">
-    <span class="pill" title="Study streak">${I.flame}${liveStreak()} study</span>
-    <span class="pill" title="Application streak: days in a row with at least one application">${I.case}${plural(streak, "day")} applying</span>
-    <span class="pill" title="Applications today">${I.target}${n}/${S.jobTarget} today</span></div></div></div>`;
+  const week = hasJobs() ? Jobs.stats(S.jobs, today()).thisWeek : 0;
+  return `<div class="top"><div class="wrap"><button class="linkish soft mback" id="jback">‹ Profile</button><h1>Job tracker</h1>
+    ${hasJobs() ? `<div class="stats"><span class="pill" title="Applications this week (weeks start Monday)">${I.case}${week} applied this week</span></div>` : ""}</div></div>`;
 }
 function todayHTML(){
+  if (!hasJobs()) return `<div class="panel"><h3>Track your applications</h3><p>Tap +1 Applied each time you send one. Add the company and role if you like, then move it along as you hear back.</p>
+    <button class="cta jplus" id="plus1">+1 Applied</button>
+    <div class="jrow"><button class="linkish soft" id="details" aria-expanded="${!!form && !form.id}">${form && !form.id ? "Hide details" : "+ Add details"}</button></div>
+    ${form && !form.id ? formHTML(null) : ""}</div>`;
   const n = Jobs.countOn(S.jobs, today()), pct = Math.min(100, Math.round(n / S.jobTarget * 100));
-  return `<div class="panel"><div class="jcount"><b>${n}</b><span>of ${S.jobTarget} applications today${n >= S.jobTarget ? " · target hit 🎉" : ""}</span></div>
+  return `<div class="panel"><div class="jcount"><b>${n}</b><span>of ${S.jobTarget} today${n >= S.jobTarget ? " · target hit 🎉" : ""}</span></div>
     <div class="jbar" role="progressbar" aria-label="Applications today" aria-valuenow="${n}" aria-valuemin="0" aria-valuemax="${S.jobTarget}"><span style="width:${Math.max(2, pct)}%"></span></div>
     <button class="cta jplus" id="plus1">+1 Applied</button>
     <div class="jrow"><button class="linkish soft" id="details" aria-expanded="${!!form && !form.id}">${form && !form.id ? "Hide details" : "+ Add details"}</button>
@@ -41,22 +46,23 @@ function formHTML(j){
     <div class="jfbtns"><button type="button" class="cta ghost" id="jcancel">Cancel</button><button type="submit" class="cta">${j ? "Save" : "Log application"}</button></div></form>`;
 }
 function statsHTML(){
+  if (Jobs.live(S.jobs).length < STATS_FROM) return "";
   const s = Jobs.stats(S.jobs, today());
   const diff = s.thisWeek - s.lastWeek;
   return `<div class="panel"><h3>Stats</h3><div class="sumgrid">
     <div><b>${s.total}</b><small>total applied</small></div>
     <div><b>${s.rate}%</b><small>response rate</small></div>
     <div><b>${s.thisWeek}</b><small>this week (${diff >= 0 ? "+" : "−"}${Math.abs(diff)} vs last)</small></div></div>
-    <p class="fine">Response rate: the share of applications that got any reply, meaning their status moved past Applied
-    (OA, phone screen, onsite, offer or rejected). Ghosted doesn't count. Last week: ${s.lastWeek}. Weeks start Monday.</p></div>`;
+    <p class="fine">Response rate counts any reply: online assessment, phone screen, onsite, offer or rejection.</p></div>`;
 }
 function chipHTML(j){
-  return `<button class="schip st-${j.status}" data-pick="${esc(j.id)}" aria-expanded="${picking === j.id}" aria-label="Status: ${esc(Jobs.statusName(j.status))}. Change">
+  return `<button class="schip st-${j.status}" data-pick="${esc(j.id)}" aria-expanded="${picking === j.id}" aria-label="Status: ${esc(longName(j.status))}. Change"${j.status === "oa" ? ` title="Online assessment"` : ""}>
     ${esc(Jobs.statusName(j.status))}<span aria-hidden="true">▾</span></button>`;
 }
+const longName = id => (id === "oa" ? "Online assessment" : Jobs.statusName(id));
 function pickerHTML(j){
-  return `<div class="spick" role="group" aria-label="Set status">${Jobs.STATUSES.map(([id, name]) =>
-    `<button class="schip st-${id}" data-set="${esc(j.id)}" data-status="${id}" aria-pressed="${j.status === id}">${esc(name)}</button>`).join("")}</div>`;
+  return `<div class="spick" role="group" aria-label="Set status">${Jobs.STATUSES.map(([id]) =>
+    `<button class="schip st-${id}" data-set="${esc(j.id)}" data-status="${id}" aria-pressed="${j.status === id}">${esc(longName(id))}</button>`).join("")}</div>`;
 }
 function itemHTML(j){
   if (form && form.id === j.id) return `<li class="job editing">${formHTML(j)}</li>`;
@@ -99,7 +105,7 @@ function submit(el, render){
   else S.jobs = [...S.jobs, Jobs.create(v, { id: newId(), day: today(), now })];
   const added = !form.id;
   form = null; commit(); render();
-  if (added) toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
+  if (added) toast(`Logged · ${Jobs.countOn(S.jobs, today())} of ${S.jobTarget} today`);
 }
 function bindForm(render){
   const fe = $("#jform");
@@ -139,14 +145,16 @@ function bindList(app, render){
   });
 }
 function bind(app, render){
+  $("#jback").onclick = () => B.goTab("profile");
   $("#plus1").onclick = () => {
     S.jobs = [...S.jobs, Jobs.create(null, { id: newId(), day: today(), now: Date.now() })]; commit(); render();
-    toast(`Logged · ${Jobs.countOn(S.jobs, today())}/${S.jobTarget} today`);
+    toast(`Logged · ${Jobs.countOn(S.jobs, today())} of ${S.jobTarget} today`);
   };
   $("#details").onclick = () => {
     form = form && !form.id ? null : { id: null, draft: null }; picking = null; render();
     const first = app.querySelector("#jform input"); if (first) first.focus({ preventScroll: true });
   };
+  if (!hasJobs()) return bindForm(render);
   app.querySelectorAll("[data-tgt]").forEach(b => b.onclick = () => { setSettings({ jobTarget: Jobs.clampTarget(S.jobTarget + +b.dataset.tgt) }); render(); });
   app.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
     view = { ...view, status: b.dataset.filter }; render();
@@ -167,7 +175,7 @@ function bind(app, render){
 
 function renderJobs(app, render){
   app.innerHTML = `${headerHTML()}<div class="wrap">${todayHTML()}${statsHTML()}
-    <div class="panel"><h3>Applications</h3>${filtersHTML()}<div id="jlist">${listHTML()}</div></div></div>`;
+    ${hasJobs() ? `<div class="panel"><h3>Applications</h3>${filtersHTML()}<div id="jlist">${listHTML()}</div></div>` : ""}</div>`;
   bind(app, render);
 }
 

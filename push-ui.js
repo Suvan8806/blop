@@ -159,9 +159,9 @@ async function clearDevice(getToken) {
 }
 
 /* ---------- panel ---------- */
-const CAL_HINT = "With a study plan, the Today tab can add a daily reminder to your calendar instead.";
+const CAL_HINT = "With a study plan, Plan settings on Today can add a daily event to your calendar instead.";
 function innerHTML() {
-  const head = `<h3>Daily reminder</h3>`, m = mode();
+  const head = `<h3>Reminders</h3>`, m = mode();
   const msg = text => `${head}<p style="margin:0">${text}</p>`;
   if (m === "ios-install") return msg("Add blop to your Home Screen first (Share → Add to Home Screen), then turn this on.");
   if (m === "unsupported") return msg(`This browser can’t show notifications. ${CAL_HINT}`);

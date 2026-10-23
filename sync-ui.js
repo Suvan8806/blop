@@ -85,6 +85,34 @@ function paint(){
 }
 B.sync.onChange(paint);
 
+/* ---------- the sign-in sheet (Mock's "Sign in", in place) ---------- */
+const X = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
+let sheet = null, opener = null;
+function closeSheet(){
+  if (!sheet) return;
+  sheet.remove(); sheet = null;
+  document.removeEventListener("keydown", onSheetKey);
+  if (opener && document.contains(opener)) opener.focus();
+}
+function onSheetKey(e){ if (e.key === "Escape") { e.preventDefault(); closeSheet(); } }
+function openSignInSheet(btn){
+  if (sheet) return;
+  opener = btn || null;
+  sheet = document.createElement("div");
+  sheet.className = "lp-sheet";
+  sheet.setAttribute("role", "dialog"); sheet.setAttribute("aria-modal", "true"); sheet.setAttribute("aria-label", "Sign in");
+  sheet.innerHTML = `<div class="lp-sheet-in"><button class="lp-close" id="ss-close" aria-label="Close sign-in">${X}</button>${syncPanelHTML()}</div>`;
+  document.body.appendChild(sheet);
+  bind(sheet.querySelector("#syncbox"));
+  sheet.querySelector("#ss-close").onclick = closeSheet;
+  sheet.addEventListener("click", e => { if (e.target === sheet) closeSheet(); });
+  document.addEventListener("keydown", onSheetKey);
+  const first = ["#sgoogle:not([disabled])", "#scode input", "#semail input", "#ss-close"].map(s => sheet.querySelector(s)).find(Boolean);
+  if (first) first.focus();
+}
+B.sync.onChange(s => { if (s.user && sheet) { closeSheet(); B.render(); } });
+
+B.openSignInSheet = openSignInSheet;
 B.syncPanelHTML = syncPanelHTML;
 B.bindSyncPanel = app => { const box = app.querySelector("#syncbox"); if (box) bind(box); };
 })();
