@@ -28,6 +28,7 @@ Content lives in plain script files, loaded in this order by `index.html`:
 | `content-sd.js` | System Design units (system design, ML system design, LLM systems) |
 | `content-ml-deep.js` | ML deep-dive units |
 | `content-extra.js` | extra questions appended to lessons that already shipped |
+| `content-interactive.js` | interactive questions (numbers, estimates, code, bugs, shapes, sorting...) appended to lessons that already shipped, at most 2 per lesson |
 
 **Never reorder or delete units, lessons or questions.** Ids come from array positions
 (`u{unit}l{lesson}` and `u{unit}l{lesson}q{n}`) and saved progress uses them. Only append:

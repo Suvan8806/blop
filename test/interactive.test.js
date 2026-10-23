@@ -335,3 +335,86 @@ test("answerText covers every interactive type", () => {
   ];
   samples.forEach(([raw, text]) => assert.equal(L.answerText(nq(raw)), text, raw.type));
 });
+
+/* ---------- content-interactive.js ---------- */
+function loadCurriculum(files) {
+  const prev = global.window;
+  global.window = { CURRICULUM: undefined };
+  for (const f of files) { delete require.cache[require.resolve(f)]; require(f); }
+  const c = global.window.CURRICULUM;
+  global.window = prev;
+  return c;
+}
+const BASE_FILES = ["../content.js", "../content-code.js", "../content-sd.js", "../content-ml-deep.js", "../content-extra.js"];
+const BASE = loadCurriculum(BASE_FILES);
+const FULL = loadCurriculum([...BASE_FILES, "../content-interactive.js"]);
+/* Runs content-interactive.js against a recording curriculum: one entry per question, with the lesson it found. */
+function captureEntries() {
+  const entries = [];
+  const fake = BASE.map((u, ui) => ({ t: u.t, ls: { find: pred => {
+    const l = u.ls.find(pred);
+    const e = { ui, title: l ? l[0] : null, qs: [] };
+    entries.push(e);
+    return l ? [l[0], l[1], { push: q => e.qs.push(q) }] : undefined;
+  } } }));
+  const prev = global.window;
+  global.window = { CURRICULUM: fake };
+  try { delete require.cache[require.resolve("../content-interactive.js")]; require("../content-interactive.js"); }
+  finally { global.window = prev; }
+  return entries;
+}
+const ENTRIES = captureEntries();
+
+test("every content-interactive entry targets an existing lesson by unit index and title", () => {
+  assert.ok(ENTRIES.length >= 120, `only ${ENTRIES.length} entries`);
+  ENTRIES.forEach((e, i) => {
+    assert.ok(e.title, `entry ${i} (unit ${e.ui}) names a lesson that doesn't exist`);
+    assert.equal(e.qs.length, 1, `entry ${i} appended ${e.qs.length} questions`);
+  });
+});
+
+test("every interactive item passes normQ and has a why", () => {
+  ENTRIES.forEach((e, i) => {
+    const q = quiet(() => L.normQ(e.qs[0], `entry${i}`));
+    assert.ok(q, `entry ${i}: ${e.ui} / ${e.title} (${e.qs[0].type}) is malformed`);
+    assert.ok(q.why.length > 10, `entry ${i}: ${e.title} needs a why`);
+    assert.ok(q.p.length > 3, `entry ${i}: ${e.title} needs a prompt`);
+  });
+});
+
+test("at least 8 items of each interactive format", () => {
+  const n = {};
+  ENTRIES.forEach(e => { const q = L.normQ(e.qs[0], "x"); const k = q.type === "match" && q.mono ? "match-mono" : q.type; n[k] = (n[k] || 0) + 1; });
+  ["num", "est", "type", "output", "bug", "blanks", "bigo", "dims", "derive", "rank", "bucket", "tf", "compare", "cm", "match-mono"]
+    .forEach(t => assert.ok((n[t] || 0) >= 8, `${t}: ${n[t] || 0}`));
+});
+
+test("no lesson gets more than 2 interactive items, and they are spread widely", () => {
+  const per = {};
+  ENTRIES.forEach(e => { const k = `${e.ui}/${e.title}`; per[k] = (per[k] || 0) + 1; });
+  Object.entries(per).forEach(([k, v]) => assert.ok(v <= 2, `${k} has ${v}`));
+  assert.ok(Object.keys(per).length >= 100, `only ${Object.keys(per).length} lessons`);
+});
+
+test("interactive items are appended after every existing question, so old ids keep their questions", () => {
+  BASE.forEach((u, ui) => u.ls.forEach((l, li) => {
+    const now = FULL[ui].ls[li][2];
+    assert.ok(now.length >= l[2].length);
+    l[2].forEach((q, qi) => assert.deepEqual(now[qi], q, `u${ui}l${li}q${qi}`));
+  }));
+  const added = FULL.reduce((a, u, ui) => a + u.ls.reduce((b, l, li) => b + l[2].length - BASE[ui].ls[li][2].length, 0), 0);
+  assert.equal(added, ENTRIES.length);
+});
+
+test("content checks: cm metrics match their matrix, estimates sit inside their slider, answers parse", () => {
+  ENTRIES.forEach(e => {
+    const q = L.normQ(e.qs[0], "x");
+    if (q.type === "cm") q.then.forEach(m => assert.ok(Math.abs(L.cmMetric(m.metric, q.cells) - m.answer) < 1e-9, `${e.title}: ${m.metric}`));
+    if (q.type === "est") assert.ok(q.min <= L.estBand(q)[0] && L.estBand(q)[1] <= q.max, e.title);
+    if (q.type === "num") assert.equal(L.checkNum(q, String(q.answer)), true, e.title);
+    if (q.type === "type") q.answers.forEach(a => assert.equal(L.checkTyped(q, a), true, e.title));
+    if (q.type === "output" && q.mode === "type") assert.equal(L.checkTyped(q, q.answers[0]), true, e.title);
+    if (q.type === "bigo") assert.ok(q.ladder.includes(q.time), e.title);
+    if (["bug", "blanks"].includes(q.type)) assert.ok(!/\babove\b/.test(q.p), `${e.title}: prompt shouldn't point "above"`);
+  });
+});

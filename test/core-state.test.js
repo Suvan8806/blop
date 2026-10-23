@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const FILES = ["content.js", "content-code.js", "content-sd.js", "content-ml-deep.js", "content-extra.js", "plan.js", "srs.js",
+const FILES = ["content.js", "content-code.js", "content-sd.js", "content-ml-deep.js", "content-extra.js", "content-interactive.js", "plan.js", "srs.js",
   "jobs.js", "mock-prompts.js", "mock.js", "state.js", "merge.js", "sync-logic.js", "logic.js", "core.js"];
 
 function boot(saved) {
