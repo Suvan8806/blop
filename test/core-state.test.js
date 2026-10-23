@@ -25,6 +25,16 @@ function boot(saved) {
 const eq = (actual, expected) => assert.deepEqual(JSON.parse(JSON.stringify(actual)), expected);
 const todayNum = () => { const d = new Date(); return Math.floor((d - d.getTimezoneOffset() * 60000) / 864e5); };
 
+test("isTyping spots text fields, so session shortcuts leave typing alone", () => {
+  const { B } = boot();
+  assert.equal(B.isTyping({ tagName: "INPUT" }), true);
+  assert.equal(B.isTyping({ tagName: "TEXTAREA" }), true);
+  assert.equal(B.isTyping({ tagName: "SELECT" }), true);
+  assert.equal(B.isTyping({ tagName: "DIV", isContentEditable: true }), true);
+  assert.equal(B.isTyping({ tagName: "BUTTON" }), false);
+  assert.equal(B.isTyping(null), false);
+});
+
 test("a saved plan with days: 3e8 loads as no plan, and today's schedule doesn't crash", () => {
   const { B } = boot({ plan: { id: "p", start: todayNum() - 3, days: 3e8, knownUnits: 5, startRemaining: 9, targets: {}, updatedAt: 5 } });
   assert.equal(B.S.plan, null);
