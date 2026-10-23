@@ -20,8 +20,9 @@ function draftFrom(){
   return { step: 1, goals: f ? f.goals.slice() : [], known: new Set(S.focus ? S.focus.known : []),
     pace: activePlan() ? "keep" : DEFAULT_DAYS, perDay: PER_DAY.includes(S.goal) ? S.goal : 2 };
 }
-function path(){ return Paths.pathFor(UNITS, d.goals, { known: [...d.known], done: S.done, secs: Plan.lessonSecs(S.times) }); }
-const secs = () => Plan.lessonSecs(S.times);
+function path(){ return Paths.pathFor(UNITS, d.goals, { known: [...d.known], done: S.done, secsOf: B.estSecs }); }
+/* Average estimated seconds per lesson left on the draft path (estimate.js, scaled by the learner's pace). */
+const secs = () => { const p = path(); return p.remaining ? p.secs / p.remaining : 120; };
 function hours(min){ return min < 60 ? `${min} min` : `${Math.round(min / 6) / 10} h`; }
 
 /* ---------- step 1: goals ---------- */

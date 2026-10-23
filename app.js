@@ -17,7 +17,7 @@ if (!window.Blop || !window.Blop.S) {
 }
 try { sessionStorage.removeItem("blop-stale-reload"); } catch (e) {}
 const B = window.Blop, L = B.logic;
-const { UNITS, ALL, BY_ID, S, I, $, esc, save, setSettings, liveStreak, toast, unlocked, nextInUnit, startLesson, startPractice, isDue,
+const { UNITS, ALL, BY_ID, S, I, $, esc, save, setSettings, liveStreak, toast, unlocked, nextInUnit, startLesson, startPractice, isDue, estSecs, estLabel,
   planSkip, sched, dayGoal, statsRow, hasFocus, pathUnits, pathNext, plural } = B;
 const app = $("#app");
 
@@ -57,10 +57,12 @@ function lessonRow(l, nxt, todaySet){
   const ic = isDone ? I.check : isCur ? I.play : lock ? I.lock : I.book;
   const inToday = !isDone && todaySet.has(l.id) ? " · in today’s plan" : "";
   const badge = isDone && isDue(l.id) ? ` <span class="badge" title="Due for review">review</span>` : "";
-  const sub = (isDone ? "Done · tap to redo" : isCur ? `Up next · ${l.qs.length} questions` : lock ? "Finish the lesson before this to unlock" : "Ready") + inToday;
+  const sub = (isDone ? "Done · tap to redo" : isCur ? "Up next" : lock ? "Finish the lesson before this to unlock" : "Ready") + ` · ${estLabel(estSecs(l))}` + inToday;
   return `<li><button class="lesson ${cls}" data-lesson="${l.id}"><span class="node">${ic}</span>
     <span><div class="lt">${esc(l.title)}${badge}</div><div class="ls">${sub}</div></span></button></li>`;
 }
+/* "8 lessons · ~16 min" (estimate.js, scaled by the learner's pace). */
+function unitTime(u){ return `${plural(u.lessons.length, "lesson")} · ${estLabel(u.lessons.reduce((a, l) => a + estSecs(l), 0))}`; }
 function unitHTML(u, s, todaySet){
   const done = u.lessons.filter(l => S.done[l.id]).length;
   const open = S.open === u.ui;
@@ -70,7 +72,7 @@ function unitHTML(u, s, todaySet){
     <button class="banner" data-unit="${u.ui}" aria-expanded="${open}">
       <span class="num" aria-hidden="true">${u.num}</span>
       <small>Unit ${u.num}</small><h2>${esc(u.title)}</h2>
-      <span class="meta">${done} of ${u.lessons.length} complete${skipped ? (hasFocus() ? " · not on your path" : " · skipped in your plan") : ""}</span>
+      <span class="meta">${unitTime(u)} · ${done} done${skipped ? (hasFocus() ? " · not on your path" : " · skipped in your plan") : ""}</span>
       <div class="ubar"><span style="width:${done/u.lessons.length*100}%"></span></div>
     </button>${open ? `<ul class="lessons">${u.lessons.map(l => lessonRow(l, nxt, todaySet)).join("")}</ul>` : ""}</section>`;
 }
@@ -95,7 +97,7 @@ function pathUnitHTML(u, i, n, order, nxt, todaySet){
     <button class="banner" data-unit="${u.ui}" aria-expanded="${open}">
       <span class="num" aria-hidden="true">${i + 1}</span>
       <small>Step ${i + 1} of ${n} · ${esc(L.subjectName(u.tr))}</small><h2>${esc(u.title)}</h2>
-      <span class="meta">${done} of ${u.lessons.length} complete · <span class="ustate">${state}</span></span>
+      <span class="meta">${unitTime(u)} · ${done} done · <span class="ustate">${state}</span></span>
       <div class="ubar"><span style="width:${done / u.lessons.length * 100}%"></span></div>
     </button>${open ? `<ul class="lessons">${u.lessons.map(l => lessonRow(l, nextInUnit(u), todaySet)).join("")}</ul>` : ""}</section>`;
 }
@@ -174,7 +176,7 @@ function renderProfile(){
   ${B.remindPanelHTML ? B.remindPanelHTML() : ""}
   ${dayGoal().plan
     ? `<div class="panel"><h3>Daily goal</h3><p style="margin:0">Your study plan sets this each day. Change it in the Today tab.</p></div>`
-    : `<div class="panel"><h3>Daily goal</h3><p>Lessons per day. Each takes about two minutes.</p>
+    : `<div class="panel"><h3>Daily goal</h3><p>Lessons per day. Each takes about ${plural(Math.max(1, Math.round(ALL.reduce((a, l) => a + estSecs(l), 0) / ALL.length / 60)), "minute")}.</p>
     <div class="seg">${[1,2,3,5].map(n => `<button data-goal="${n}" aria-pressed="${S.goal===n}">${n}</button>`).join("")}</div></div>`}
   <div class="panel"><h3>Add to your home screen</h3>
     <ol class="steps"><li>iPhone: open this site in Safari, tap Share, then Add to Home Screen.</li>

@@ -7,7 +7,7 @@ const DEFAULT_REMIND = "20:00"; // 8 pm: the daily reminder and the calendar ale
 const SETTINGS_KEYS = ["goal", "jobTarget", "subject", "remind", "skip"];
 /* Every top-level field S may have. Anything else (from an old build, another app, or a bad remote copy) is dropped.
    resetAt: when progress was last reset. progressUpdatedAt: when study progress last changed. */
-const KNOWN_KEYS = ["done", "doneOn", "xp", "xpLog", "streak", "last", "miss", "srs", "jobs", "mock", "plan", "focus", "times",
+const KNOWN_KEYS = ["done", "doneOn", "xp", "xpLog", "streak", "last", "miss", "srs", "jobs", "mock", "plan", "focus", "times", "pace",
   "day", "dayLessons", "dayXp", "updatedAt", "settingsUpdatedAt", "resetAt", "progressUpdatedAt", ...SETTINGS_KEYS, "open"];
 
 /* XP is a counter per device ({ deviceId: xp earned there }), so two devices earning offline add up instead of
@@ -25,6 +25,7 @@ const LIMITS = {
   COUNT: 100000,      // streak, lessons in a day, missed count per question
   DAY: 200000,        // local day numbers (1970 .. year 2517)
   MIN_SECS: 15, MAX_SECS: 900, TIMES: 20,
+  PACE_MIN: 10, PACE_MAX: 1000, // lesson pace samples: actual÷estimated time in percent (estimate.js), last TIMES kept
   FOCUS_GOALS: 3, FOCUS_KNOWN: 100, FOCUS_TEXT: 120 // learning focus: goals picked, units marked as known
 };
 
@@ -82,6 +83,8 @@ function clean(raw) {
   out.miss = cleanMap(src.miss, v => int(v, 0, LIMITS.COUNT, undefined), LIMITS.MISS_ENTRIES);
   out.times = (Array.isArray(src.times) ? src.times : []).filter(Number.isFinite).slice(-LIMITS.TIMES)
     .map(t => int(t, LIMITS.MIN_SECS, LIMITS.MAX_SECS, LIMITS.MIN_SECS));
+  out.pace = (Array.isArray(src.pace) ? src.pace : []).filter(Number.isFinite).slice(-LIMITS.TIMES)
+    .map(t => int(t, LIMITS.PACE_MIN, LIMITS.PACE_MAX, 100));
   out.xpLog = xpLogOf(src);
   out.xp = sumXp(out.xpLog);
   out.streak = int(src.streak, 0, LIMITS.COUNT, 0);
@@ -96,7 +99,7 @@ function clean(raw) {
 
 /* Everything "Reset progress" clears. The plan is handled separately (it's ended, not deleted). */
 function progressDefaults() {
-  return { done: {}, xp: 0, xpLog: {}, streak: 0, last: -1, miss: {}, srs: {}, doneOn: {}, times: [],
+  return { done: {}, xp: 0, xpLog: {}, streak: 0, last: -1, miss: {}, srs: {}, doneOn: {}, times: [], pace: [],
     day: -1, dayLessons: 0, dayXp: 0, open: null };
 }
 

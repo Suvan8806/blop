@@ -9,7 +9,7 @@
    - mock (interview attempts): per id, newer updatedAt (tombstones included), then the newest KEEP_MOCK.
    - plan: newer updatedAt; for the same plan, targets merge per day with max.
    - focus (learning goals and units marked known): newer updatedAt; null (never picked) always loses.
-   - times: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
+   - times and pace: union (as a multiset), last 20 kept. settings: newer settingsUpdatedAt.
    - day counters: same day -> max; otherwise the later day.
    - top-level fields that aren't in BlopState.KNOWN_KEYS are dropped.
    - every timestamp is capped at now + 1 day first, so a device with a clock far ahead can't win forever.
@@ -180,6 +180,7 @@ function merge(local, remote, now = Date.now()) {
     plan: mergePlan(a.plan, b.plan),
     focus: mergeFocus(a.focus, b.focus),
     times: mergeTimes(top === a ? pa.times : pb.times, top === a ? pb.times : pa.times),
+    pace: mergeTimes(top === a ? pa.pace : pb.pace, top === a ? pb.pace : pa.pace),
     ...pickSettings(a, b),
     ...pickDay(pa, pb),
     resetAt,

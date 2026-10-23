@@ -162,9 +162,10 @@ function topoOrder(set, units, prereqs = PREREQS) {
 
 /* The ordered path for a set of goal ids.
    opts: known (unit titles the learner already knows), skipKnown (default true: leave them out of `included`),
-   done (lesson id -> true, for `remaining`), secs (seconds per lesson, for `minutes`).
+   done (lesson id -> true, for `remaining`), secsOf (lesson -> estimated seconds, estimate.js; for `secs` and
+   `minutes`), or secs (the same seconds for every lesson) without it.
    -> { goals, steps: [{ ui, title, lessons, left, target, known }] in path order (known ones included and
-        flagged), included: [ui] (the units to study, in order), lessons, remaining, minutes } */
+        flagged), included: [ui] (the units to study, in order), lessons, remaining, secs (left), minutes } */
 function pathFor(units, goalIds, opts = {}) {
   const goals = [...new Set(goalIds || [])].map(goalById).filter(Boolean);
   const targets = new Set(goals.flatMap(g => g.targets));
@@ -173,7 +174,8 @@ function pathFor(units, goalIds, opts = {}) {
   const known = new Set(Array.isArray(opts.known) ? opts.known : []);
   const skipKnown = opts.skipKnown !== false;
   const done = isObj(opts.done) ? opts.done : {};
-  const secs = Number.isFinite(opts.secs) && opts.secs > 0 ? opts.secs : DEFAULT_SECS;
+  const flat = Number.isFinite(opts.secs) && opts.secs > 0 ? opts.secs : DEFAULT_SECS;
+  const secsOf = typeof opts.secsOf === "function" ? opts.secsOf : () => flat;
   const steps = order.map(t => {
     const u = have.get(t);
     return { ui: u.ui, title: t, lessons: u.lessons.length, left: u.lessons.filter(l => !done[l.id]).length,
@@ -182,8 +184,9 @@ function pathFor(units, goalIds, opts = {}) {
   const study = steps.filter(s => !(skipKnown && s.known));
   const lessons = study.reduce((a, s) => a + s.lessons, 0);
   const remaining = study.reduce((a, s) => a + s.left, 0);
-  return { goals: goals.map(g => g.id), steps, included: study.map(s => s.ui), lessons, remaining,
-    minutes: Math.round(remaining * secs / 60) };
+  const secs = study.reduce((a, s) => a + have.get(s.title).lessons.filter(l => !done[l.id]).reduce((b, l) => b + secsOf(l), 0), 0);
+  return { goals: goals.map(g => g.id), steps, included: study.map(s => s.ui), lessons, remaining, secs,
+    minutes: Math.round(secs / 60) };
 }
 
 /* A saved focus { goals, known, updatedAt }, cleaned: known goal ids only (at most MAX_GOALS, no repeats),

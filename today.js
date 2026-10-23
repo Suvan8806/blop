@@ -4,7 +4,7 @@
 if (!window.Blop || !window.Blop.S) return; // an old cached index.html; app.js shows the reload screen
 const B = window.Blop, L = B.logic;
 const { UNITS, BY_ID, QS, S, I, $, esc, commit, setSettings, today, toast, unlocked, unitLabel, startLesson, startReview, dueReviews,
-  plural, planSkip, planIds, hasFocus, pathUnits, sched, dayGoal, nextUp, statsRow, ringSVG } = B;
+  plural, planSkip, planIds, hasFocus, pathUnits, sched, dayGoal, nextUp, statsRow, ringSVG, estSecs, estLabel } = B;
 
 const PLAN_LENGTHS = [14, 30, 45, 60];
 const DEFAULT_PLAN_DAYS = 30;
@@ -17,13 +17,16 @@ function todayIds(s){
   const doneToday = planIds().filter(id => S.done[id] && S.doneOn[id] === t);
   return [...doneToday, ...s.plan[0].ids];
 }
+/* Estimated time for these lessons (estimate.js), and the average per lesson for plan maths. */
+const secsFor = ids => ids.reduce((a, id) => a + estSecs(BY_ID[id]), 0);
+const avgSecs = ids => ids.length ? secsFor(ids) / ids.length : 120;
 function lessonItem(id, isNext){
   const l = BY_ID[id], done = !!S.done[id], lock = !done && !unlocked(l);
   const cls = done ? "done" : lock ? "locked" : isNext ? "cur" : "";
   const ic = done ? I.check : lock ? I.lock : isNext ? I.play : I.book;
   const state = done ? "Done" : lock ? "Locked" : isNext ? "Up next" : "Ready";
   return `<li><button class="lesson ${cls}" data-start="${id}" style="--hue:${UNITS[l.ui].hue}"><span class="node">${ic}</span>
-    <span><div class="lt">${esc(l.title)}</div><div class="ls">${state} · ${esc(unitLabel(l.ui))}</div></span></button></li>`;
+    <span><div class="lt">${esc(l.title)}</div><div class="ls">${state} · ${esc(unitLabel(l.ui))} · ${estLabel(estSecs(l))}</div></span></button></li>`;
 }
 function paceText(s){
   const t = today(), date = d => Plan.dateLabel(d, t);
@@ -49,7 +52,7 @@ function todayPlanHTML(s, secs){
   return `<div class="panel"><div class="ring">${ringSVG(pct, `${s.doneToday}/${s.todayTarget}`)}
       <div><h3>${s.todayLeft ? "Today’s plan" : "Today’s plan done"}</h3>
       <p style="margin:0">${s.todayLeft
-        ? `${plural(s.todayLeft, "lesson")} to go, about ${Plan.minutesFor(s.todayLeft, secs)} min.`
+        ? `${plural(s.todayLeft, "lesson")} to go, ${estLabel(secsFor(ids.filter(id => !S.done[id])))} in total.`
         : "Anything extra today makes the rest of your plan lighter."}</p></div></div>
     ${ids.length ? `<ul class="lessons tlist">${ids.map(id => lessonItem(id, id === next)).join("")}</ul>` : ""}
     ${aheadHTML(s)}</div>`;
@@ -69,7 +72,7 @@ function goalHTML(){
   return `<div class="panel"><div class="ring">${ringSVG(pct, `${g.done}/${g.goal}`)}
     <div><h3>${pct >= 1 ? "Daily goal reached" : "Today’s goal"}</h3>
     <p style="margin:0">${pct >= 1 ? "Nice. Anything else today is bonus XP."
-      : `Finish ${plural(left, "more lesson")} to hit your goal.`}</p></div></div>
+      : `Finish ${plural(left, "more lesson")} to hit your goal.${ids.length ? ` ${estLabel(secsFor(ids))} in total.` : ""}`}</p></div></div>
     ${ids.length ? `<ul class="lessons tlist">${ids.map((id, i) => lessonItem(id, i === 0)).join("")}</ul>`
       : nxt ? `<p style="margin:14px 0 12px">Next: ${esc(unitLabel(nxt.ui))} · ${esc(nxt.title)}</p>
     <button class="cta" id="cont">Start lesson</button>` : ""}</div>`;
@@ -271,7 +274,7 @@ function renderToday(app, render){
     $("#reload").onclick = () => location.reload();
     return;
   }
-  const secs = Plan.lessonSecs(S.times);
+  const secs = avgSecs(planIds().filter(id => !S.done[id]));
   const s = sched();
   app.innerHTML = `<div class="top"><div class="wrap"><h1>Today</h1>${statsRow()}</div></div><div class="wrap">
     ${focusNudgeHTML()}
