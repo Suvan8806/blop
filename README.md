@@ -38,8 +38,11 @@ new units at the end of `window.CURRICULUM`, new questions at the end of a lesso
 Units 16 and 17 are tagged `sd` in `logic.js` (`UNIT_SUBJECT`) so `content.js` stays untouched.
 
 Display order within a subject is unit order, except units named in `UNIT_AFTER` in `logic.js`: each is shown
-(and planned) right after the base unit whose title it names, so a deep dive sits next to the unit it deepens.
-This only changes display order and the "Unit N" numbers, never unit indices or ids.
+(and planned) right after the unit whose title it names, after anything already placed there. Chains are allowed, so
+the order can follow the prerequisite graph in `paths.js` (Math Primer before Foundations, the backprop, optimizer and
+regularization deep dives after Architectures). `test/paths.test.js` checks that each subject's display order is a
+valid topological order of that graph and that key concepts (chain rule, ReLU, softmax, PPO) are never used before the
+lesson that teaches them. This only changes display order and the "Unit N" numbers, never unit indices or ids.
 
 ### Lessons
 `[title, teach text, questions, {problems:[...]}]`. The 4th element is optional; `problems` is a

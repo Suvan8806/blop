@@ -59,8 +59,8 @@ test("the CNN goal starts with the basics of Python and ends with the CNN units"
   assert.deepEqual(p.included, p.steps.map(s => s.ui));
 });
 
-test("ties follow the app's display order, and dependencies beat display order", () => {
-  // Python Refresher is shown before Math Primer; Foundations is shown before Math Primer but needs it.
+test("ties follow the app's display order", () => {
+  // Python Refresher is shown before Math Primer, which Foundations needs.
   const t = titlesOf(P.pathFor(UNITS, ["cnn"]));
   assert.ok(t.indexOf("Python Refresher") < t.indexOf("Math Primer"));
   assert.ok(t.indexOf("Math Primer") < t.indexOf("Foundations"));
@@ -129,9 +129,9 @@ test("a plan over a path covers the path's lessons in path order", () => {
   const mathAt = ids.indexOf(UNITS[uiOf("Math Primer")].lessons[0].id), foundAt = ids.indexOf(UNITS[uiOf("Foundations")].lessons[0].id);
   assert.ok(mathAt < foundAt);
   assert.equal(ids.at(-1), UNITS[uiOf("Deep Dive: CNN Internals")].lessons.at(-1).id);
-  // Without a path the plan keeps its display order, so Foundations comes before Math Primer as before.
+  // Without a path the plan keeps display order, which puts Deep Dive: Probability & Stats before Architectures.
   const plain = Plan.planOrder(UNITS, []);
-  assert.ok(plain.indexOf(UNITS[uiOf("Foundations")].lessons[0].id) < plain.indexOf(UNITS[uiOf("Math Primer")].lessons[0].id));
+  assert.ok(plain.indexOf(UNITS[uiOf("Deep Dive: Probability & Stats")].lessons[0].id) < plain.indexOf(UNITS[uiOf("Architectures")].lessons[0].id));
   // Skip still applies on top of a path, and junk indices are ignored.
   assert.ok(!Plan.planOrder(UNITS, [uiOf("Start Here")], [...order, 999, -1]).includes(UNITS[uiOf("Start Here")].lessons[0].id));
 });
@@ -142,3 +142,38 @@ test("makeFocus and goalsLabel", () => {
   assert.equal(P.goalsLabel(f), "CNNs & computer vision + RAG systems");
   assert.equal(P.goalsLabel(null), "");
 });
+
+/* ---------- display order vs the prerequisite graph ---------- */
+const L = require("../logic.js");
+
+test("each subject's display order is a valid topological order of the prerequisite graph", () => {
+  for (const [sub] of L.SUBJECTS) {
+    const order = L.unitsFor(UNITS, sub).map(u => u.title), at = new Map(order.map((t, i) => [t, i]));
+    for (const t of order) {
+      // Cross-subject prerequisites (Coding needs Python, ML System Design needs Foundations) live in another tab.
+      (P.PREREQS[t] || []).filter(r => at.has(r)).forEach(r => assert.ok(at.get(r) < at.get(t), `${sub}: ${r} is shown before ${t}`));
+    }
+  }
+});
+
+/* Key concepts and the lesson that teaches each. No lesson in the same subject may use one earlier in display order. */
+const CONCEPTS = [
+  ["chain rule", /chain rule/i, "ml", "The Chain Rule"],
+  ["derivative", /\bderivative/i, "ml", "Derivative as Slope"],
+  ["ReLU", /\bReLU\b/, "ml", "Activation Functions"],
+  ["softmax", /softmax/i, "ml", "From Line to Probability"],
+  ["PPO", /\bPPO\b/, "ml", "Policy Gradients & PPO"]
+];
+const textOf = l => [l.title, l.teach, JSON.stringify(l.qs)].join(" ");
+test("no lesson uses a key concept before the lesson that teaches it", () => {
+  for (const [name, re, sub, teacher] of CONCEPTS) {
+    const lessons = L.unitsFor(UNITS, sub).flatMap(u => u.lessons);
+    const teach = lessons.findIndex(l => l.title === teacher);
+    assert.ok(teach >= 0, `teaching lesson for ${name} exists`);
+    const first = lessons.findIndex(l => re.test(textOf(l)));
+    assert.ok(first >= teach, `${name} is used in "${lessons[first] && lessons[first].title}" before "${teacher}" teaches it`);
+  }
+});
+/* Concepts the content uses but never teaches yet (content work, listed in the teaching audit). */
+test.todo("logits are defined before Calibration (Deep Dive: Evaluation Metrics) uses them");
+test.todo("recursion and memoisation get a lesson before Trees with DFS");
